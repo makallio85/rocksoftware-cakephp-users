@@ -82,7 +82,7 @@ class ScimUsers
         $user = $users->newEmptyEntity();
         $values = [
             UserProvisioner::EMAIL => $person->email,
-            UserProvisioner::NAME => $person->name,
+            UserProvisioner::NAME => $provisioner->fitName($person->name),
             UserProvisioner::PHONE => $person->phone,
             UserProvisioner::IS_ACTIVE => $person->active,
             UserProvisioner::ACCESS_FROM => $person->accessFrom,
@@ -235,7 +235,7 @@ class ScimUsers
 
         $changed = [];
         $values = [
-            UserProvisioner::NAME => $person->name,
+            UserProvisioner::NAME => $provisioner->fitName($person->name),
             UserProvisioner::PHONE => $person->phone,
             UserProvisioner::ACCESS_FROM => $person->accessFrom,
             UserProvisioner::ACCESS_UNTIL => $person->accessUntil,
