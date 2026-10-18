@@ -138,6 +138,26 @@ class UsersControllerTest extends TestCase
         $this->assertResponseContains('href="/permissions/' . $this->admin->get('id') . '"');
     }
 
+    public function testAnEmailConflictFadesWhenRockSoftwareIdStopsRepeatingIt(): void
+    {
+        $person = $this->createUser('person@example.test', 'Person');
+        $this->link($person, 'subject-p');
+        $identities = $this->fetchTable('RockSoftware/Users.Identities');
+        $identities->updateAll(['pending_email' => 'taken@example.test', 'synced_at' => DateTime::now()], ['user_id' => $person->get('id')]);
+        $this->signIn($this->admin);
+
+        $this->get('/auth/users/' . $person->get('id'));
+        $this->assertResponseContains('Email conflict');
+        $this->get('/auth/users?access=attention');
+        $this->assertResponseContains('Person');
+
+        $identities->updateAll(['synced_at' => DateTime::now()->subHours(6)], ['user_id' => $person->get('id')]);
+        $this->get('/auth/users/' . $person->get('id'));
+        $this->assertResponseNotContains('Email conflict');
+        $this->get('/auth/users?access=attention');
+        $this->assertResponseNotContains('person@example.test');
+    }
+
     public function testThePageCannotChangeAccess(): void
     {
         $person = $this->createUser('person@example.test', 'Person');
