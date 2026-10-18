@@ -11,6 +11,7 @@ use Cake\Core\Configure;
 use Cake\Core\PluginApplicationInterface;
 use Cake\Datasource\ConnectionManager;
 use Cake\Event\EventManager;
+use Cake\Http\BaseApplication;
 use Cake\Http\Middleware\BodyParserMiddleware;
 use Cake\Http\Middleware\CsrfProtectionMiddleware;
 use Cake\Http\MiddlewareQueue;
@@ -142,6 +143,16 @@ class UsersPlugin extends BasePlugin
 
     protected ?string $name = 'RockSoftware/Users';
 
+    /**
+     * The application, for `registerApplicationEvents()`.
+     */
+    private static ?PluginApplicationInterface $application = null;
+
+    /**
+     * The application whose listeners `registerApplicationEvents()` registered.
+     */
+    private static ?PluginApplicationInterface $eventsRegisteredFor = null;
+
     protected bool $middlewareEnabled = true;
 
     protected bool $bootstrapEnabled = true;
@@ -154,6 +165,7 @@ class UsersPlugin extends BasePlugin
      */
     public function bootstrap(PluginApplicationInterface $app): void
     {
+        self::$application = $app;
         self::applyDefaults();
         self::loadTranslations();
         // A migration that changes a table leaves the schema cache describing
@@ -162,6 +174,33 @@ class UsersPlugin extends BasePlugin
         // application moved to this plugin.
         EventManager::instance()->on('Migration.afterMigrate', [self::class, 'clearSchemaCache']);
         EventManager::instance()->on('Migration.afterRollback', [self::class, 'clearSchemaCache']);
+    }
+
+    /**
+     * Registers the application's event listeners before the plugin answers a
+     * request itself (SCIM, provisioning, back-channel logout), so the
+     * application hears `beforeUserSave`, `accessGranted` and the rest.
+     *
+     * CakePHP before 5.4 registers them only when a request reaches
+     * `BaseApplication::handle()`, after the middleware; these endpoints answer
+     * before that, so mbm's role for a new person was never set. CakePHP 5.4
+     * registers them at bootstrap (`registerEvents()`), and nothing is done.
+     * Done once per application object, and only for a request that is answered
+     * here and so never reaches `handle()`.
+     *
+     * @return void
+     */
+    public static function registerApplicationEvents(): void
+    {
+        $app = self::$application;
+        if (!$app instanceof BaseApplication || method_exists($app, 'registerEvents')) {
+            return;
+        }
+        if (self::$eventsRegisteredFor === $app) {
+            return;
+        }
+        self::$eventsRegisteredFor = $app;
+        $app->setEventManager($app->pluginEvents($app->events($app->getEventManager())));
     }
 
     /**
