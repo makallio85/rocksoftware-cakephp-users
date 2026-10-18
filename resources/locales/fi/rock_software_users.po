@@ -671,3 +671,9 @@ msgstr "Muut osoitteet"
 
 msgid "Name, email addresses, phone and access dates are kept in Rock Software ID."
 msgstr "Nimeä, sähköpostiosoitteita, puhelinta ja käyttöoikeuden päiviä ylläpidetään Rock Software ID:ssä."
+
+msgid "Browser"
+msgstr "Selain"
+
+msgid "Other"
+msgstr "Muu"

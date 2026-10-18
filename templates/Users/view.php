@@ -22,6 +22,7 @@ use RockSoftware\Users\Model\Entity\AccessChangeType;
 use RockSoftware\Users\Model\Entity\RevocationType;
 use RockSoftware\Users\Model\Entity\SessionEventType;
 use RockSoftware\Users\Model\Entity\SignInMethodType;
+use RockSoftware\Users\Service\BrowserName;
 use RockSoftware\Users\Service\UserAccess;
 use RockSoftware\Users\Service\UserProvisioner;
 
@@ -192,6 +193,7 @@ foreach ($actions as $i => $action) {
                             <th scope="col"><?= __d('rock_software_users', 'Time') ?></th>
                             <th scope="col"><?= __d('rock_software_users', 'Method') ?></th>
                             <th scope="col"><?= __d('rock_software_users', 'Event') ?></th>
+                            <th scope="col"><?= __d('rock_software_users', 'Browser') ?></th>
                             <th scope="col"><?= __d('rock_software_users', 'IP address') ?></th>
                         </tr>
                     </thead>
@@ -206,6 +208,18 @@ foreach ($actions as $i => $action) {
                                 <td class="text-nowrap"><?= h($format($event->created)) ?></td>
                                 <td><?= $event->sign_in_method_type === null ? '—' : h(SignInMethodType::label($event->sign_in_method_type->value)) ?></td>
                                 <td style="color: <?= $refused ? '#a40e26' : ($type === SessionEventType::SIGNED_IN ? '#116329' : 'inherit') ?>"><?= h(SessionEventType::label($type, $actor)) ?></td>
+                                <?php $browser = BrowserName::describe($event->user_agent); ?>
+                                <td title="<?= h((string)$event->user_agent) ?>">
+                                    <?php if ($event->user_agent === null) : ?>
+                                        —
+                                    <?php elseif ($browser['browser'] !== null) : ?>
+                                        <?= h($browser['browser']) ?>
+                                        <?php if ($browser['device'] !== null) : ?><div class="text-body-secondary"><?= h($browser['device']) ?></div><?php endif; ?>
+                                    <?php else : ?>
+                                        <?= __d('rock_software_users', 'Other') ?>
+                                        <div class="text-body-secondary text-truncate" style="max-width: 220px"><?= h($event->user_agent) ?></div>
+                                    <?php endif; ?>
+                                </td>
                                 <td class="text-body-secondary font-monospace"><?= h((string)$event->ip_address) ?></td>
                             </tr>
                         <?php endforeach; ?>

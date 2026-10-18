@@ -14,6 +14,7 @@ use Cake\ORM\Entity;
  * @property int $session_event_type_id
  * @property int|null $sign_in_method_type_id
  * @property int|null $actor_user_id
+ * @property string|null $user_agent
  * @property string|null $ip_address
  * @property \Cake\I18n\DateTime $created
  * @property \RockSoftware\Users\Model\Entity\SessionEventType|null $session_event_type
