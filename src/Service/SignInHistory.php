@@ -28,7 +28,10 @@ class SignInHistory
         try {
             /** @var \RockSoftware\Users\Model\Table\SessionEventsTable $events */
             $events = $this->fetchTable('RockSoftware/Users.SessionEvents');
-            $events->record($type, $data + ['ip_address' => self::clientIp($request)]);
+            $events->record($type, $data + [
+                'ip_address' => self::clientIp($request),
+                'user_agent' => self::userAgent($request),
+            ]);
             if ($type === SessionEventType::SIGNED_IN) {
                 /** @var \RockSoftware\Users\Model\Table\SettingsTable $settings */
                 $settings = $this->fetchTable('RockSoftware/Users.Settings');
@@ -40,6 +43,13 @@ class SignInHistory
     }
 
     /**
+     * The client's address. Applications run behind a proxy (Traefik, and
+     * sometimes nginx in the container), so the connection comes from a
+     * private address and the client is in `X-Forwarded-For`. Read from the
+     * right, the first public address there is the one our own proxy added;
+     * anything further left the client could have written itself. A
+     * connection from a public address is the client.
+     *
      * @param \Psr\Http\Message\ServerRequestInterface|null $request The request.
      * @return string|null
      */
@@ -48,10 +58,39 @@ class SignInHistory
         if ($request === null) {
             return null;
         }
-        $ip = method_exists($request, 'clientIp')
-            ? (string)$request->clientIp()
-            : (string)($request->getServerParams()['REMOTE_ADDR'] ?? '');
+        $remote = (string)($request->getServerParams()['REMOTE_ADDR'] ?? '');
+        if ($remote !== '' && !self::isPrivate($remote)) {
+            return mb_substr($remote, 0, 45);
+        }
+        $forwarded = array_reverse(array_map('trim', explode(',', $request->getHeaderLine('X-Forwarded-For'))));
+        foreach ($forwarded as $candidate) {
+            if (filter_var($candidate, FILTER_VALIDATE_IP) !== false && !self::isPrivate($candidate)) {
+                return $candidate;
+            }
+        }
 
-        return $ip === '' ? null : mb_substr($ip, 0, 45);
+        return $remote === '' ? null : mb_substr($remote, 0, 45);
+    }
+
+    /**
+     * The browser, as its User-Agent says, cut to the column.
+     *
+     * @param \Psr\Http\Message\ServerRequestInterface|null $request The request.
+     * @return string|null
+     */
+    public static function userAgent(?ServerRequestInterface $request): ?string
+    {
+        $agent = $request === null ? '' : trim($request->getHeaderLine('User-Agent'));
+
+        return $agent === '' ? null : mb_substr($agent, 0, 255);
+    }
+
+    /**
+     * @param string $ip An address.
+     * @return bool Whether it is private, loopback or reserved.
+     */
+    private static function isPrivate(string $ip): bool
+    {
+        return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
     }
 }

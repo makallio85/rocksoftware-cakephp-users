@@ -44,7 +44,7 @@ class SessionEventsTable extends Table
      * Writes one row.
      *
      * @param string $type One of the `SessionEventType` value constants.
-     * @param array{user_id?: int|null, email?: string|null, method?: string|null, actor_user_id?: int|null, ip_address?: string|null} $data What is known.
+     * @param array{user_id?: int|null, email?: string|null, method?: string|null, actor_user_id?: int|null, ip_address?: string|null, user_agent?: string|null} $data What is known.
      * @return \RockSoftware\Users\Model\Entity\SessionEvent
      */
     public function record(string $type, array $data = []): SessionEvent
@@ -60,6 +60,7 @@ class SessionEventsTable extends Table
                 : null,
             'actor_user_id' => $data['actor_user_id'] ?? null,
             'ip_address' => $data['ip_address'] ?? null,
+            'user_agent' => $data['user_agent'] ?? null,
         ];
         // One field at a time: set() with an array is deprecated from 5.2.
         foreach ($values as $field => $value) {
