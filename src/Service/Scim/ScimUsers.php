@@ -192,7 +192,13 @@ class ScimUsers
         if ($identity !== null) {
             $resource['externalId'] = $identity->external_id;
         }
-        $resource['active'] = (bool)$user->get(UserProvisioner::IS_ACTIVE);
+        // Answering a write, `active` is what Rock Software ID sent: Authentik
+        // keeps the answer as the state it last wrote, and a held removal
+        // answered with the real `true` made the later "active again" look
+        // like no change, so it was never sent.
+        $resource['active'] = $echo !== [] && array_key_exists('active', $echo)
+            ? !in_array($echo['active'], [false, 'false', 'False'], true)
+            : (bool)$user->get(UserProvisioner::IS_ACTIVE);
         $created = $user->get('created');
         $modified = $user->get('modified');
         $resource['meta'] = array_filter([
