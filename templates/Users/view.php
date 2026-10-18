@@ -7,6 +7,7 @@
  * @var \Cake\View\View $this
  * @var \Cake\Datasource\EntityInterface $user
  * @var array{state: string, linked: bool, conflict: string|null, held: bool, system: bool} $status
+ * @var array<\RockSoftware\Users\Model\Entity\UserEmail> $otherEmails
  * @var bool $canIssueLink
  * @var \RockSoftware\Users\Model\Entity\Identity|null $identity
  * @var \RockSoftware\Users\Model\Entity\SessionEvent|null $lastSignIn
@@ -84,7 +85,25 @@ foreach ($actions as $i => $action) {
                     <h2 class="h6 fw-semibold"><?= __d('rock_software_users', 'Details') ?></h2>
                     <dl class="row mb-0 small">
                         <dt class="col-sm-5 text-body-secondary fw-normal"><?= __d('rock_software_users', 'Email address') ?></dt>
-                        <dd class="col-sm-7"><?= h((string)$user->get(UserProvisioner::EMAIL)) ?></dd>
+                        <dd class="col-sm-7">
+                            <?= h((string)$user->get(UserProvisioner::EMAIL)) ?>
+                            <?php if ($otherEmails !== []) : ?>
+                                <span class="badge rounded-pill ms-1" style="background:#eaeef2;color:#424a53"><?= __d('rock_software_users', 'used here') ?></span>
+                            <?php endif; ?>
+                        </dd>
+                        <?php if ($otherEmails !== []) : ?>
+                            <dt class="col-sm-5 text-body-secondary fw-normal"><?= __d('rock_software_users', 'Other addresses') ?></dt>
+                            <dd class="col-sm-7">
+                                <?php foreach ($otherEmails as $other) : ?>
+                                    <div>
+                                        <?= h($other->email) ?>
+                                        <?php if ($other->label !== null) : ?>
+                                            <span class="badge rounded-pill ms-1" style="background:#eaeef2;color:#424a53"><?= h($other->label) ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            </dd>
+                        <?php endif; ?>
                         <dt class="col-sm-5 text-body-secondary fw-normal"><?= __d('rock_software_users', 'Phone') ?></dt>
                         <dd class="col-sm-7"><?= is_string($phone) && $phone !== '' ? h($phone) : __d('rock_software_users', 'No phone') ?></dd>
                         <dt class="col-sm-5 text-body-secondary fw-normal"><?= __d('rock_software_users', 'Access from') ?></dt>
@@ -101,7 +120,7 @@ foreach ($actions as $i => $action) {
                             : h($format($lastSignIn->created) . ($lastSignIn->sign_in_method_type === null ? '' : ', ' . SignInMethodType::label($lastSignIn->sign_in_method_type->value))) ?></dd>
                     </dl>
                     <p class="small text-body-secondary border-top pt-3 mt-2 mb-0">
-                        <?= __d('rock_software_users', 'Name, email, phone and access dates are kept in Rock Software ID.') ?>
+                        <?= __d('rock_software_users', 'Name, email addresses, phone and access dates are kept in Rock Software ID.') ?>
                         <?php if ($accountUrl !== null) : ?>
                             <?= $this->Html->link(__d('rock_software_users', 'Change them there'), $accountUrl, ['rel' => 'noopener']) ?>
                         <?php endif; ?>

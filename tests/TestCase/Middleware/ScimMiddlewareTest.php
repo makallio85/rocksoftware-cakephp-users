@@ -33,6 +33,7 @@ class ScimMiddlewareTest extends TestCase
         'plugin.RockSoftware/Users.HeldRevocations',
         'plugin.RockSoftware/Users.ScimGroups',
         'plugin.RockSoftware/Users.ScimGroupMembers',
+        'plugin.RockSoftware/Users.UserEmails',
         'plugin.RockSoftware/Users.Users',
     ];
 
@@ -377,6 +378,51 @@ class ScimMiddlewareTest extends TestCase
 
         $this->assertResponseCode(201);
         $this->assertSame(100, mb_strlen($this->fetchTable('Users')->get((int)$this->body()['id'])->get('name')));
+    }
+
+    public function testAPersonsOtherAddressesAreKept(): void
+    {
+        $this->scim('POST', '/Users', $this->person('tom', [], ['emails' => [
+            ['value' => 'tom@example.test', 'type' => 'work', 'primary' => true],
+            ['value' => 'Tom@Other.test', 'type' => 'other', 'display' => 'Rock Software'],
+            ['value' => 'tom@example.test', 'type' => 'other', 'display' => 'Account'],
+        ]]));
+        $id = (int)$this->body()['id'];
+
+        $rows = $this->fetchTable('RockSoftware/Users.UserEmails')->find()->where(['user_id' => $id])->all()->toList();
+        $this->assertCount(1, $rows, 'the address used here is not repeated');
+        $this->assertSame('tom@other.test', $rows[0]->email);
+        $this->assertSame('Rock Software', $rows[0]->label);
+
+        $this->scim('PUT', '/Users/' . $id, $this->person('tom'));
+        $this->assertSame(0, $this->fetchTable('RockSoftware/Users.UserEmails')->find()->where(['user_id' => $id])->count());
+        $this->assertContains(AccessChangeType::DETAILS_UPDATED, $this->historyTypes($id));
+    }
+
+    public function testTheAlertsFeedListsHeldRemovalsAndConflicts(): void
+    {
+        $this->scim('GET', '/RockSoftwareAlerts');
+        $this->assertResponseOk();
+        $this->assertSame(0, $this->body()['totalResults']);
+
+        $this->scim('POST', '/Users', $this->person('tom'));
+        $tom = (int)$this->body()['id'];
+        $this->scim('DELETE', '/Users/' . $tom);
+        $this->assertTrue($this->fetchTable('Users')->get($tom)->get('is_active'), 'the only user: held');
+
+        $this->scim('GET', '/RockSoftwareAlerts');
+        $body = $this->body();
+        $this->assertSame(1, $body['totalResults']);
+        $this->assertSame('revocation_held', $body['Resources'][0]['type']);
+        $this->assertSame('tom@example.test', $body['Resources'][0]['email']);
+        $first = $body['Resources'][0]['id'];
+
+        $this->scim('GET', '/RockSoftwareAlerts');
+        $this->assertSame($first, $this->body()['Resources'][0]['id'], 'stable while it lasts');
+
+        $this->configRequest(['headers' => ['Accept' => 'application/scim+json']]);
+        $this->get('/auth/scim/v2/RockSoftwareAlerts');
+        $this->assertResponseCode(401);
     }
 
     public function testABadPayloadIsRefused(): void

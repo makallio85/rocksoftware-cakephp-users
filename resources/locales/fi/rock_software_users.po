@@ -659,3 +659,15 @@ msgid "{0} minute"
 msgid_plural "{0} minutes"
 msgstr[0] "{0} minuutti"
 msgstr[1] "{0} minuuttia"
+
+msgid "Also: {0}"
+msgstr "Myös: {0}"
+
+msgid "used here"
+msgstr "käytössä täällä"
+
+msgid "Other addresses"
+msgstr "Muut osoitteet"
+
+msgid "Name, email addresses, phone and access dates are kept in Rock Software ID."
+msgstr "Nimeä, sähköpostiosoitteita, puhelinta ja käyttöoikeuden päiviä ylläpidetään Rock Software ID:ssä."

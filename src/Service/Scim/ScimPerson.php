@@ -23,6 +23,7 @@ final class ScimPerson
      * @param bool $active Whether the account is active.
      * @param \Cake\I18n\DateTime|null $accessFrom Access starts at.
      * @param \Cake\I18n\DateTime|null $accessUntil Access ends at.
+     * @param array<string, string|null> $otherEmails The person's other addresses => where they belong.
      */
     private function __construct(
         public readonly string $externalId,
@@ -33,6 +34,7 @@ final class ScimPerson
         public readonly bool $active,
         public readonly ?DateTime $accessFrom,
         public readonly ?DateTime $accessUntil,
+        public readonly array $otherEmails = [],
     ) {
     }
 
@@ -96,6 +98,7 @@ final class ScimPerson
             (bool)$active,
             $from,
             $until,
+            self::others($payload['emails'] ?? null, mb_strtolower($email)),
         );
     }
 
@@ -121,6 +124,36 @@ final class ScimPerson
         }
 
         return $first;
+    }
+
+    /**
+     * Every address but the primary one, with where it belongs (`display`,
+     * else `type`).
+     *
+     * @param mixed $emails The SCIM `emails`.
+     * @param string $primary The primary address, lower case.
+     * @return array<string, string|null>
+     */
+    private static function others(mixed $emails, string $primary): array
+    {
+        if (!is_array($emails)) {
+            return [];
+        }
+        $others = [];
+        foreach ($emails as $email) {
+            $value = is_array($email) ? ($email['value'] ?? null) : null;
+            if (!is_string($value) || filter_var(trim($value), FILTER_VALIDATE_EMAIL) === false) {
+                continue;
+            }
+            $value = mb_strtolower(trim($value));
+            if ($value === $primary || strlen($value) > 190 || array_key_exists($value, $others)) {
+                continue;
+            }
+            $label = $email['display'] ?? $email['type'] ?? null;
+            $others[$value] = is_string($label) && trim($label) !== '' ? mb_substr(trim($label), 0, 100) : null;
+        }
+
+        return $others;
     }
 
     /**

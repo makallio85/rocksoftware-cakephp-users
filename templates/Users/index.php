@@ -13,6 +13,7 @@
  * @var array<array{label: string, value: callable}> $columns
  * @var array<array{label: string, url: callable}> $actions
  * @var int $heldCount
+ * @var array<int, array<\RockSoftware\Users\Model\Entity\UserEmail>> $otherEmails
  */
 use RockSoftware\Users\Model\Entity\SignInMethodType;
 use RockSoftware\Users\Service\UserProvisioner;
@@ -36,6 +37,7 @@ foreach ($users as $user) {
         'name' => UserProvisioner::displayName($user),
         'email' => (string)$user->get(UserProvisioner::EMAIL),
         'phone' => is_string($phone) && $phone !== '' ? $phone : null,
+        'others' => array_map(fn($row): string => $row->email, $otherEmails[$id] ?? []),
         'status' => $statuses[$id],
         'last' => $last === null ? __d('rock_software_users', 'Never') : $this->Time->format($last->created, 'd.M.yyyy HH.mm'),
         'method' => $last?->sign_in_method_type === null ? '' : SignInMethodType::label($last->sign_in_method_type->value),
@@ -106,6 +108,9 @@ $viewUrl = fn(int $id): array => ['plugin' => 'RockSoftware/Users', 'controller'
                                 <td><?= $this->Html->link($row['name'], $viewUrl($row['id']), ['class' => 'fw-semibold']) ?></td>
                                 <td>
                                     <div><?= h($row['email']) ?></div>
+                                    <?php if ($row['others'] !== []) : ?>
+                                        <div class="small text-body-secondary"><?= h(__d('rock_software_users', 'Also: {0}', implode(', ', $row['others']))) ?></div>
+                                    <?php endif; ?>
                                     <div class="small text-body-secondary"><?= $row['phone'] === null ? __d('rock_software_users', 'No phone') : h($row['phone']) ?></div>
                                 </td>
                                 <?php foreach ($row['extra'] as $value) : ?>
@@ -129,6 +134,9 @@ $viewUrl = fn(int $id): array => ['plugin' => 'RockSoftware/Users', 'controller'
                             <span class="text-end"><?= $this->element('RockSoftware/Users.access_status', ['user' => $row['user'], 'status' => $row['status'], 'compact' => true]) ?></span>
                         </span>
                         <span class="small text-body-secondary"><?= h($row['email']) ?></span>
+                        <?php if ($row['others'] !== []) : ?>
+                            <span class="small text-body-secondary"><?= h(__d('rock_software_users', 'Also: {0}', implode(', ', $row['others']))) ?></span>
+                        <?php endif; ?>
                         <?php foreach ($row['extra'] as $i => $value) : ?>
                             <span class="small"><?= h($columns[$i]['label']) ?>: <?= h($value) ?></span>
                         <?php endforeach; ?>

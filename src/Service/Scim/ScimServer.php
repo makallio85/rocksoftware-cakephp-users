@@ -7,6 +7,7 @@ use Cake\Core\Configure;
 use Cake\Datasource\EntityInterface;
 use Cake\Log\Log;
 use Cake\ORM\Locator\LocatorAwareTrait;
+use RockSoftware\Users\Model\Entity\RevocationType;
 use RockSoftware\Users\Model\Entity\ScimGroup;
 use RockSoftware\Users\Service\AccessManager;
 use RockSoftware\Users\Service\UserProvisioner;
@@ -17,7 +18,9 @@ use Throwable;
  * `/auth/scim/v2` (`ScimMiddleware`). It answers what Authentik's SCIM client
  * calls: `ServiceProviderConfig`; `Users` (list with `userName eq` and
  * `externalId eq` filters, read, create, replace, delete); `Groups` (list with
- * `displayName eq`, read, create, replace, patch, delete).
+ * `displayName eq`, read, create, replace, patch, delete). And one of its own,
+ * `RockSoftwareAlerts`: what needs a person's attention here, which Rock
+ * Software ID's hourly job reads and emails.
  *
  * The request carries the application's SCIM token, which Rock Software ID
  * delivered through `POST /auth/provision` and of which only a SHA-256 is
@@ -91,6 +94,9 @@ class ScimServer
         $users = new ScimUsers($this->access, $this->baseUrl);
         $groups = new ScimGroups($this->access, $this->baseUrl);
 
+        if ($path === '/RockSoftwareAlerts') {
+            return $method === 'GET' ? new ScimResponse(200, $this->alerts()) : $this->notAllowed();
+        }
         if ($path === '/ServiceProviderConfig') {
             return $method === 'GET' ? new ScimResponse(200, $this->serviceProviderConfig()) : $this->notAllowed();
         }
@@ -296,6 +302,62 @@ class ScimServer
             'totalResults' => $total,
             'itemsPerPage' => count($resources),
             'startIndex' => $start,
+            'Resources' => $resources,
+        ];
+    }
+
+    /**
+     * What needs a person's attention here, for Rock Software ID's hourly job
+     * to email: removals the mass-removal stop holds, and current email
+     * conflicts. An `id` stays the same while the alert lasts, so the job
+     * emails each once.
+     *
+     * @return array<string, mixed>
+     */
+    private function alerts(): array
+    {
+        $provisioner = new UserProvisioner();
+        $resources = [];
+        /** @var \RockSoftware\Users\Model\Table\HeldRevocationsTable $held */
+        $held = $this->fetchTable('RockSoftware/Users.HeldRevocations');
+        foreach ($held->pending() as $row) {
+            $user = $provisioner->findById($row->user_id);
+            $resources[] = [
+                'id' => 'revocation_held-' . $row->id,
+                'type' => 'revocation_held',
+                'email' => $user === null ? null : (string)$user->get(UserProvisioner::EMAIL),
+                'name' => $user === null ? null : UserProvisioner::displayName($user),
+                'since' => $row->created->toIso8601String(),
+                'detail' => sprintf(
+                    'Removing access is on hold (%s). Approve or reject it on the users page.',
+                    RevocationType::label((string)$row->revocation_type?->value),
+                ),
+            ];
+        }
+        $conflicts = $provisioner->identities()->find()->where(['pending_email IS NOT' => null]);
+        foreach ($conflicts as $identity) {
+            /** @var \RockSoftware\Users\Model\Entity\Identity $identity */
+            $pending = $identity->currentEmailConflict();
+            $user = $pending === null ? null : $provisioner->findById($identity->user_id);
+            if ($pending === null || $user === null) {
+                continue;
+            }
+            $resources[] = [
+                'id' => 'email_conflict-' . $identity->user_id . '-' . sha1($pending),
+                'type' => 'email_conflict',
+                'email' => (string)$user->get(UserProvisioner::EMAIL),
+                'name' => UserProvisioner::displayName($user),
+                'since' => $identity->synced_at?->toIso8601String(),
+                'detail' => sprintf(
+                    'Rock Software ID sent the address %s, which another user here already has.',
+                    $pending,
+                ),
+            ];
+        }
+
+        return [
+            'schemas' => ['urn:rocksoftware:params:scim:api:messages:2.0:ListResponse'],
+            'totalResults' => count($resources),
             'Resources' => $resources,
         ];
     }
