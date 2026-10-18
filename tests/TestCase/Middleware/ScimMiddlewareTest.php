@@ -354,6 +354,14 @@ class ScimMiddlewareTest extends TestCase
         }
     }
 
+    public function testALongNameIsCutToTheColumn(): void
+    {
+        $this->scim('POST', '/Users', $this->person('tom', [], ['name' => ['formatted' => str_repeat('Virtanen ', 30)]]));
+
+        $this->assertResponseCode(201);
+        $this->assertSame(100, mb_strlen($this->fetchTable('Users')->get((int)$this->body()['id'])->get('name')));
+    }
+
     public function testABadPayloadIsRefused(): void
     {
         $this->scim('POST', '/Users', ['userName' => 'x', 'emails' => [['value' => 'x@example.test']]]);
