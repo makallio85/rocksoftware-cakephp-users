@@ -17,7 +17,9 @@ use Cake\ORM\Query\SelectQuery;
 use Cake\ORM\Table;
 use RockSoftware\Users\Command\EmergencySignInCommand;
 use RockSoftware\Users\Model\Entity\AccessChangeType;
+use RockSoftware\Users\Model\Entity\Identity;
 use RockSoftware\Users\Model\Entity\SessionEventType;
+use RockSoftware\Users\Model\Table\UserEmailsTable;
 use RockSoftware\Users\Service\AccessManager;
 use RockSoftware\Users\Service\SignInHistory;
 use RockSoftware\Users\Service\UserAccess;
@@ -67,14 +69,6 @@ class UsersController extends SettingsBaseController
     public const FILTER_NONE = 'none';
     public const FILTER_ATTENTION = 'attention';
     public const FILTER_ALL = 'all';
-
-    /**
-     * How long an email conflict counts without Rock Software ID repeating it.
-     * A real conflict comes back with every full sync (every 4 hours); one
-     * resolved by changing the address back never does, because Rock Software
-     * ID then sees nothing to send.
-     */
-    public const EMAIL_CONFLICT_HOURS = 5;
 
     /** The validity choices for a link made on the page, in minutes. */
     public const EMERGENCY_LINK_MINUTES = [60, 240, 1440];
@@ -136,6 +130,10 @@ class UsersController extends SettingsBaseController
             foreach ([UserProvisioner::EMAIL, UserProvisioner::NAME, UserProvisioner::PHONE] as $column) {
                 $or[$users->aliasField($column) . ' LIKE'] = $like;
             }
+            // A person's other addresses find them too.
+            $or[$users->aliasField('id') . ' IN'] = $this->userEmails()->find()
+                ->select(['user_id'])
+                ->where(['email LIKE' => $like]);
             $query->where(['OR' => $or]);
         }
         $this->applyFilter($query, $filter);
@@ -169,6 +167,7 @@ class UsersController extends SettingsBaseController
             'columns' => $columns->getArrayCopy(),
             'actions' => $this->actions(),
             'heldCount' => count($held->pending()),
+            'otherEmails' => $this->userEmails()->forUsers($ids),
         ]);
     }
 
@@ -208,6 +207,7 @@ class UsersController extends SettingsBaseController
         $this->set([
             'user' => $user,
             'status' => $this->statuses([$user])[$userId],
+            'otherEmails' => $this->userEmails()->forUsers([$userId])[$userId] ?? [],
             'canIssueLink' => UserAccess::allows($user),
             'identity' => (new UserProvisioner())->identities()->findForUser($userId),
             'lastSignIn' => $events->latestSignIns([$userId])[$userId] ?? null,
@@ -393,7 +393,7 @@ class UsersController extends SettingsBaseController
                     ->select(['user_id'])
                     ->where([
                         'pending_email IS NOT' => null,
-                        'synced_at >' => DateTime::now()->subHours(self::EMAIL_CONFLICT_HOURS),
+                        'synced_at >' => DateTime::now()->subHours(Identity::EMAIL_CONFLICT_HOURS),
                     ]);
                 $held = $this->fetchTable('RockSoftware/Users.HeldRevocations')->find()
                     ->select(['user_id'])
@@ -437,11 +437,7 @@ class UsersController extends SettingsBaseController
         $statuses = [];
         foreach ($users as $user) {
             $id = (int)$user->get('id');
-            $pending = isset($identities[$id]) ? $identities[$id]->get('pending_email') : null;
-            $confirmed = isset($identities[$id]) ? $identities[$id]->synced_at : null;
-            if (!$confirmed instanceof DateTime || $confirmed < DateTime::now()->subHours(self::EMAIL_CONFLICT_HOURS)) {
-                $pending = null;
-            }
+            $pending = isset($identities[$id]) ? $identities[$id]->currentEmailConflict() : null;
             $statuses[$id] = [
                 'state' => UserAccess::state($user),
                 'linked' => isset($identities[$id]),
@@ -480,6 +476,15 @@ class UsersController extends SettingsBaseController
         $users = $this->users();
 
         return $users->find()->where([$users->aliasField(UserProvisioner::IS_ACTIVE) => true])->count();
+    }
+
+    /**
+     * @return \RockSoftware\Users\Model\Table\UserEmailsTable
+     */
+    private function userEmails(): UserEmailsTable
+    {
+        /** @var \RockSoftware\Users\Model\Table\UserEmailsTable */
+        return $this->fetchTable('RockSoftware/Users.UserEmails');
     }
 
     /**
