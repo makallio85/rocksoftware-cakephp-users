@@ -341,6 +341,23 @@ class ScimMiddlewareTest extends TestCase
         $this->assertSame([], $this->fetchTable('RockSoftware/Users.HeldRevocations')->pending());
     }
 
+    public function testAHeldDeactivationIsAnsweredAsSent(): void
+    {
+        $this->scim('POST', '/Users', $this->person('tom'));
+        $tom = (int)$this->body()['id'];
+        $this->createUser('a@example.test', 'a');
+
+        $this->scim('PUT', '/Users/' . $tom, $this->person('tom', [], ['active' => false]));
+
+        $this->assertResponseOk();
+        $this->assertTrue($this->fetchTable('Users')->get($tom)->get('is_active'), 'held: one of two');
+        $this->assertFalse($this->body()['active'], 'answered as sent, so the later active:true is a change');
+
+        $this->scim('PUT', '/Users/' . $tom, $this->person('tom'));
+        $this->assertTrue($this->body()['active']);
+        $this->assertSame([], $this->fetchTable('RockSoftware/Users.HeldRevocations')->pending());
+    }
+
     public function testASystemUserIsNeverTouched(): void
     {
         $r2d2 = $this->createUser('r2d2@example.test', 'R2D2');
