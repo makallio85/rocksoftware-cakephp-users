@@ -264,6 +264,10 @@ SHA-256 is kept; no token means every SCIM request is refused).
   with `access_from` (their first day), so permissions can be set before they start.
   Matched by `externalId` (= the OIDC `sub`), else by email to an unlinked row; the
   SCIM `id` is `users.id`.
+- **All addresses.** The address for this application's company is `users.email`;
+  the person's other addresses (another company's, the account address) come along
+  and are kept in `rock_software_users_user_emails`, shown on the users page and
+  searched, so one person with two addresses is recognised as one.
 - **Kept current.** Name, company email, phone (E.164) and the access dates
   (`urn:rocksoftware:params:scim:schemas:extension:access:2.0:User`) come with every
   push. An address another user already has is refused (409) and shown as *Email
@@ -279,6 +283,19 @@ SHA-256 is kept; no token means every SCIM request is refused).
   user's own removal always waits.
 - **The way back in.** `bin/cake rock_software_users restore_access <email>` gives one
   person access back from the server when a mistake took it. The next push overrules it.
+
+**Alerts by email.** `GET /auth/scim/v2/RockSoftwareAlerts` (the same token) lists
+what needs a person here: removals on hold and current email conflicts, each with an
+id that stays while it lasts. Rock Software ID's hourly job reads it from every
+application and emails each new alert once, so no application needs its own mail
+set-up for them.
+
+**Before switching SCIM on** for an application that already has users,
+`bin/cake rock_software_users scim_precheck` (the people JSON from Rock Software ID on
+stdin or `--file`; `id-scim-precheck.sh` in infra-docs does both ends) shows what SCIM
+would do with each user, with the same matching rules, and what to fix first: rows
+that would be duplicated, addresses taken by another linked user, linked users who
+would lose access. It changes nothing.
 
 Every change is in the access history (`rock_software_users_access_changes`, typed by
 `rock_software_users_access_change_types` and `rock_software_users_revocation_types`).
@@ -363,6 +380,7 @@ application runs with `debug` off.
 | `bin/cake rock_software_users status` | The stored connection as JSON (configured, enabled, issuer, client ID, required group), never the secret |
 | `bin/cake rock_software_users restore_access <email>` | Give one person access back from the server |
 | `bin/cake rock_software_users revocations [list\|approve\|reject]` | The removals the mass-removal stop held |
+| `bin/cake rock_software_users scim_precheck [--file people.json]` | What switching SCIM on would do; changes nothing |
 
 ## Development
 

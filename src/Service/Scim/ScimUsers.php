@@ -14,6 +14,7 @@ use RockSoftware\Users\Model\Entity\AccessChangeType;
 use RockSoftware\Users\Model\Entity\Identity;
 use RockSoftware\Users\Model\Entity\RevocationType;
 use RockSoftware\Users\Model\Table\AccessChangesTable;
+use RockSoftware\Users\Model\Table\UserEmailsTable;
 use RockSoftware\Users\Service\AccessManager;
 use RockSoftware\Users\Service\UserProvisioner;
 
@@ -111,6 +112,7 @@ class ScimUsers
                 $identity->set($field, $value, ['guard' => false]);
             }
             $identities->saveOrFail($identity);
+            $this->userEmails()->replaceFor((int)$user->get('id'), $person->otherEmails);
         });
         if ($person->active) {
             $this->accessChanges()->record((int)$user->get('id'), AccessChangeType::GRANTED, [
@@ -284,6 +286,9 @@ class ScimUsers
                 $identity->set($field, $value, ['guard' => false]);
             }
             $identities->saveOrFail($identity);
+            if ($this->userEmails()->replaceFor($userId, $person->otherEmails)) {
+                $changed[] = 'other_emails';
+            }
             if ($changed !== []) {
                 $this->accessChanges()->record($userId, AccessChangeType::DETAILS_UPDATED, [
                     'detail' => implode(', ', $changed),
@@ -345,6 +350,15 @@ class ScimUsers
         }
 
         return $current === $new;
+    }
+
+    /**
+     * @return \RockSoftware\Users\Model\Table\UserEmailsTable
+     */
+    private function userEmails(): UserEmailsTable
+    {
+        /** @var \RockSoftware\Users\Model\Table\UserEmailsTable */
+        return $this->fetchTable('RockSoftware/Users.UserEmails');
     }
 
     /**

@@ -29,6 +29,7 @@ class UsersControllerTest extends TestCase
         'plugin.RockSoftware/Users.AccessChanges',
         'plugin.RockSoftware/Users.HeldRevocations',
         'plugin.RockSoftware/Users.EmergencySignIns',
+        'plugin.RockSoftware/Users.UserEmails',
         'plugin.RockSoftware/Users.Users',
     ];
 
@@ -158,6 +159,23 @@ class UsersControllerTest extends TestCase
         $this->assertResponseNotContains('person@example.test');
     }
 
+    public function testOtherAddressesAreShownAndFound(): void
+    {
+        $person = $this->createUser('marko@konekallio.test', 'Marko');
+        $emails = $this->fetchTable('RockSoftware/Users.UserEmails');
+        $emails->replaceFor((int)$person->get('id'), ['marko@rocksoftware.test' => 'Rock Software']);
+        $this->signIn($this->admin);
+
+        $this->get('/auth/users?q=' . rawurlencode('marko@rocksoftware.test'));
+        $this->assertResponseContains('marko@konekallio.test', 'found by the other address');
+        $this->assertResponseContains('Also: marko@rocksoftware.test');
+
+        $this->get('/auth/users/' . $person->get('id'));
+        $this->assertResponseContains('Other addresses');
+        $this->assertResponseContains('Rock Software');
+        $this->assertResponseContains('used here');
+    }
+
     public function testThePageCannotChangeAccess(): void
     {
         $person = $this->createUser('person@example.test', 'Person');
@@ -166,7 +184,7 @@ class UsersControllerTest extends TestCase
         $this->get('/auth/users/' . $person->get('id'));
         $this->assertResponseOk();
         $this->assertResponseNotContains('Deactivate');
-        $this->assertResponseContains('Name, email, phone and access dates are kept in Rock Software ID.');
+        $this->assertResponseContains('Name, email addresses, phone and access dates are kept in Rock Software ID.');
 
         $this->post('/auth/users/' . $person->get('id') . '/deactivate');
         $this->assertResponseCode(404);

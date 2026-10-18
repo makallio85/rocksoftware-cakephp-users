@@ -25,6 +25,7 @@ use RockSoftware\Users\Command\ConfigureCommand;
 use RockSoftware\Users\Command\EmergencySignInCommand;
 use RockSoftware\Users\Command\RestoreAccessCommand;
 use RockSoftware\Users\Command\RevocationsCommand;
+use RockSoftware\Users\Command\ScimPrecheckCommand;
 use RockSoftware\Users\Command\SetPasswordCommand;
 use RockSoftware\Users\Command\StatusCommand;
 use RockSoftware\Users\Middleware\BackchannelLogoutMiddleware;
@@ -379,6 +380,7 @@ class UsersPlugin extends BasePlugin
             ->add(EmergencySignInCommand::defaultName(), EmergencySignInCommand::class)
             ->add(RestoreAccessCommand::defaultName(), RestoreAccessCommand::class)
             ->add(RevocationsCommand::defaultName(), RevocationsCommand::class)
+            ->add(ScimPrecheckCommand::defaultName(), ScimPrecheckCommand::class)
             ->add(SetPasswordCommand::defaultName(), SetPasswordCommand::class)
             ->add(StatusCommand::defaultName(), StatusCommand::class);
     }
