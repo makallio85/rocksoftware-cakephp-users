@@ -68,6 +68,14 @@ class UsersController extends SettingsBaseController
     public const FILTER_ATTENTION = 'attention';
     public const FILTER_ALL = 'all';
 
+    /**
+     * How long an email conflict counts without Rock Software ID repeating it.
+     * A real conflict comes back with every full sync (every 4 hours); one
+     * resolved by changing the address back never does, because Rock Software
+     * ID then sees nothing to send.
+     */
+    public const EMAIL_CONFLICT_HOURS = 5;
+
     /** The validity choices for a link made on the page, in minutes. */
     public const EMERGENCY_LINK_MINUTES = [60, 240, 1440];
 
@@ -383,7 +391,10 @@ class UsersController extends SettingsBaseController
                 $provisioner = new UserProvisioner();
                 $conflicts = $provisioner->identities()->find()
                     ->select(['user_id'])
-                    ->where(['pending_email IS NOT' => null]);
+                    ->where([
+                        'pending_email IS NOT' => null,
+                        'synced_at >' => DateTime::now()->subHours(self::EMAIL_CONFLICT_HOURS),
+                    ]);
                 $held = $this->fetchTable('RockSoftware/Users.HeldRevocations')->find()
                     ->select(['user_id'])
                     ->where(['resolved_at IS' => null]);
@@ -427,6 +438,10 @@ class UsersController extends SettingsBaseController
         foreach ($users as $user) {
             $id = (int)$user->get('id');
             $pending = isset($identities[$id]) ? $identities[$id]->get('pending_email') : null;
+            $confirmed = isset($identities[$id]) ? $identities[$id]->synced_at : null;
+            if (!$confirmed instanceof DateTime || $confirmed < DateTime::now()->subHours(self::EMAIL_CONFLICT_HOURS)) {
+                $pending = null;
+            }
             $statuses[$id] = [
                 'state' => UserAccess::state($user),
                 'linked' => isset($identities[$id]),
