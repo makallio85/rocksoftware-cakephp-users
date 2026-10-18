@@ -29,6 +29,7 @@ class BackchannelLogoutMiddleware implements MiddlewareInterface
         if ($request->getUri()->getPath() !== UsersPlugin::BACKCHANNEL_LOGOUT_PATH) {
             return $handler->handle($request);
         }
+        UsersPlugin::registerApplicationEvents();
         if ($request->getMethod() !== 'POST') {
             return (new Response())->withStatus(405)->withHeader('Allow', 'POST');
         }

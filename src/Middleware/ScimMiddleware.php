@@ -31,6 +31,7 @@ class ScimMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
+        UsersPlugin::registerApplicationEvents();
         $baseUrl = rtrim(Router::fullBaseUrl(), '/') . UsersPlugin::SCIM_PATH;
         $result = (new ScimServer($baseUrl))->handle(
             $request->getMethod(),
