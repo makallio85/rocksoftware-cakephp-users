@@ -20,11 +20,14 @@ use RockSoftware\Users\Service\ClientMetadata;
 use RockSoftware\Users\Service\OidcClient;
 use RockSoftware\Users\Service\PasswordSignIn;
 use RockSoftware\Users\Service\Provisioning;
+use RockSoftware\Users\Service\Scim\ScimServer;
 use RockSoftware\Users\Service\SignInException;
 use RockSoftware\Users\Service\SignInHistory;
+use RockSoftware\Users\Service\UserAccess;
 use RockSoftware\Users\Service\UserInactiveException;
 use RockSoftware\Users\Service\UserProvisioner;
 use RockSoftware\Users\Session\SignInSession;
+use RockSoftware\Users\UsersPlugin;
 
 /**
  * Sign-in through the identity provider or with a password, sign-out,
@@ -175,10 +178,9 @@ class SignInController extends Controller
                 'rock_software_users',
                 'Password sign-in is off. Sign in with Rock Software ID.',
             ),
-            SessionEventType::USER_INACTIVE => __d(
-                'rock_software_users',
-                'Your account has been deactivated in this application.',
-            ),
+            SessionEventType::USER_INACTIVE => UserAccess::refusalMessage(UserAccess::REVOKED),
+            SessionEventType::ACCESS_NOT_STARTED => UserAccess::refusalMessage(UserAccess::NOT_STARTED, $user),
+            SessionEventType::ACCESS_ENDED => UserAccess::refusalMessage(UserAccess::ENDED),
             default => __d('rock_software_users', 'The email address or password is wrong.'),
         });
         $request->getSession()->write('RockSoftwareUsers.passwordEmail', mb_substr($email, 0, 190));
@@ -246,14 +248,14 @@ class SignInController extends Controller
 
             $user = (new UserProvisioner())->provision($claims);
         } catch (UserInactiveException $e) {
-            $known = (new PasswordSignIn())->findUser((string)($claims['email'] ?? ''));
-            (new SignInHistory())->record(SessionEventType::USER_INACTIVE, [
+            $known = $e->user ?? (new PasswordSignIn())->findUser((string)($claims['email'] ?? ''));
+            (new SignInHistory())->record(UserAccess::sessionEventType($e->state), [
                 'user_id' => $known === null ? null : (int)$known->get('id'),
                 'email' => is_string($claims['email'] ?? null) ? $claims['email'] : null,
                 'method' => SignInSession::METHOD_OIDC,
             ], $this->getRequest());
             Log::warning('Sign-in refused: ' . $e->getMessage());
-            $this->Flash->error(__d('rock_software_users', 'Your account has been deactivated in this application.'));
+            $this->Flash->error(UserAccess::refusalMessage($e->state, $known));
 
             return $this->redirect($this->signInUrl());
         } catch (SignInException $e) {
@@ -368,6 +370,31 @@ class SignInController extends Controller
     }
 
     /**
+     * SCIM. ScimMiddleware answers it before CSRF and sign-in; the route exists
+     * so routing lets the request reach that middleware, and this action serves
+     * an application whose queue lacks it.
+     *
+     * @return \Cake\Http\Response
+     */
+    public function scim(): Response
+    {
+        $request = $this->getRequest();
+        $path = $request->getUri()->getPath();
+        $result = (new ScimServer(rtrim(Router::fullBaseUrl(), '/') . UsersPlugin::SCIM_PATH))->handle(
+            $request->getMethod(),
+            substr($path, strpos($path, UsersPlugin::SCIM_PATH) + strlen(UsersPlugin::SCIM_PATH)),
+            $request->getQueryParams(),
+            (string)$request->getBody(),
+            $request->getHeaderLine('Authorization'),
+        );
+        $response = $this->getResponse()->withHeader('Cache-Control', 'no-store')->withStatus($result->status);
+
+        return $result->body === null ? $response : $response
+            ->withType('application/scim+json')
+            ->withStringBody((string)json_encode($result->body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
      * A single-use link from `bin/cake rock_software_users emergency_sign_in`. GET shows a
      * confirmation, so a link preview cannot spend the link; POST signs in.
      *
@@ -388,18 +415,8 @@ class SignInController extends Controller
             return null;
         }
 
-        $provisioner = new UserProvisioner();
-        $user = $provisioner->users()->find()->where(['id' => $link->user_id])->first();
-        $activeField = UserProvisioner::fields()['is_active'];
-        if (
-            !$user instanceof EntityInterface
-            || (
-                $activeField !== null
-                && $provisioner->users()->getSchema()->hasColumn($activeField)
-                && !$user->get($activeField)
-            )
-            || !$links->consume($link)
-        ) {
+        $user = (new UserProvisioner())->findById($link->user_id);
+        if (!$user instanceof EntityInterface || !UserAccess::allows($user) || !$links->consume($link)) {
             $this->Flash->error(__d('rock_software_users', 'This sign-in link is invalid, expired or already used.'));
 
             return $this->redirect($this->signInUrl());
@@ -434,7 +451,7 @@ class SignInController extends Controller
         ]);
         (new SignInHistory())->record(SessionEventType::SIGNED_IN, [
             'user_id' => (int)$user->get('id'),
-            'email' => (string)$user->get(UserProvisioner::fields()['email']),
+            'email' => (string)$user->get(UserProvisioner::EMAIL),
             'method' => $method,
         ], $this->getRequest());
 

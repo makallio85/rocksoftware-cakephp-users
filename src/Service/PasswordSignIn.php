@@ -47,8 +47,7 @@ class PasswordSignIn
         if (Configure::read('RockSoftwareUsers.passwordSignIn') !== true) {
             return false;
         }
-        $column = UserProvisioner::fields()['password'];
-        if ($column === null || !(new UserProvisioner())->users()->getSchema()->hasColumn($column)) {
+        if (!(new UserProvisioner())->users()->getSchema()->hasColumn(UserProvisioner::PASSWORD)) {
             return false;
         }
         /** @var \RockSoftware\Users\Model\Table\SettingsTable $settings */
@@ -81,7 +80,7 @@ class PasswordSignIn
 
         $hasher = new DefaultPasswordHasher();
         $user = $email === '' ? null : $this->findUser($email);
-        $column = (string)UserProvisioner::fields()['password'];
+        $column = UserProvisioner::PASSWORD;
         if ($user === null) {
             // The same work as a real check, so the answer's timing does not
             // tell which addresses have an account.
@@ -93,8 +92,9 @@ class PasswordSignIn
         if ($password === '' || !$hasher->check($password, $hash)) {
             return ['result' => SessionEventType::WRONG_PASSWORD, 'user' => $user];
         }
-        if (!UserProvisioner::isActive($user)) {
-            return ['result' => SessionEventType::USER_INACTIVE, 'user' => $user];
+        $state = UserAccess::state($user);
+        if ($state !== UserAccess::ACTIVE) {
+            return ['result' => UserAccess::sessionEventType($state), 'user' => $user];
         }
         if ($hasher->needsRehash($hash)) {
             $user->set($column, $hasher->hash($password), ['guard' => false]);
@@ -116,9 +116,9 @@ class PasswordSignIn
         if (mb_strlen($password) < self::MIN_LENGTH) {
             throw new SignInException(sprintf('The password must be at least %d characters.', self::MIN_LENGTH));
         }
-        $column = UserProvisioner::fields()['password'];
+        $column = UserProvisioner::PASSWORD;
         $users = (new UserProvisioner())->users();
-        if ($column === null || !$users->getSchema()->hasColumn($column)) {
+        if (!$users->getSchema()->hasColumn($column)) {
             throw new SignInException('The users table has no password column.');
         }
         $user->set($column, (new DefaultPasswordHasher())->hash($password), ['guard' => false]);
@@ -134,7 +134,7 @@ class PasswordSignIn
     public function findUser(string $email): ?EntityInterface
     {
         $users = (new UserProvisioner())->users();
-        $field = $users->aliasField(UserProvisioner::fields()['email']);
+        $field = $users->aliasField(UserProvisioner::EMAIL);
 
         /** @var \Cake\Datasource\EntityInterface|null */
         return $users->find()

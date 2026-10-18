@@ -295,14 +295,9 @@ class SettingsController extends SettingsBaseController
         if ($userId === null) {
             return null;
         }
-        $provisioner = new UserProvisioner();
-        $user = $provisioner->users()->find()->where(['id' => $userId])->first();
-        $nameField = UserProvisioner::fields()['name'];
-        if ($nameField === null || !$provisioner->users()->getSchema()->hasColumn($nameField)) {
-            $nameField = UserProvisioner::fields()['email'];
-        }
+        $user = (new UserProvisioner())->findById($userId);
 
-        return $user instanceof EntityInterface ? (string)$user->get($nameField) : null;
+        return $user instanceof EntityInterface ? UserProvisioner::displayName($user) : null;
     }
 
     /**

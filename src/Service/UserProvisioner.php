@@ -12,23 +12,24 @@ use Cake\I18n\DateTime;
 use Cake\ORM\Locator\LocatorAwareTrait;
 use Cake\ORM\Table;
 use RockSoftware\Users\Model\Table\IdentitiesTable;
+use RockSoftware\Users\Model\Table\UsersTable;
 
 /**
  * Turns a verified identity into the application's user row.
  *
- * A user deactivated in the application stays deactivated: signing in is
- * refused (`UserInactiveException`) until an administrator activates them on
- * the users page.
+ * The plugin owns these columns of the application's `users` table (its
+ * migration adds the missing ones): `email` (unique), `name`, `phone`,
+ * `is_active`, `access_from`, `access_until`. A `password` column, when the
+ * application keeps one, serves password sign-in. Everything else on the row
+ * is the application's.
  *
- * The link lives in the plugin's `rock_software_users_identities` table, so the application's
- * `users` table needs nothing of its own: the plugin writes only the columns it
- * finds (email, name, active flag; names in `RockSoftwareUsers.fields`).
+ * Rock Software ID pushes people through SCIM (`Scim\ScimServer`), so a person
+ * usually exists before their first sign-in. A sign-in still creates or links
+ * the row when SCIM has not (an application not yet connected to SCIM): the
+ * user is found through their identity's `external_id`, else matched on a
+ * verified email address. Every sign-in refreshes the email and name.
  *
- * The user is found through their identity's `external_id`. A user not yet
- * linked is matched on a verified email address, which is how existing accounts
- * move across at cutover. Otherwise a new user is created. Every sign-in
- * refreshes the email, name and active flag from the provider, which is the
- * master record.
+ * A user without access right now (`UserAccess`) is refused.
  *
  * Fields the application needs beyond these are filled by a listener on
  * `RockSoftwareUsers.beforeUserSave`.
@@ -38,6 +39,14 @@ class UserProvisioner
     use LocatorAwareTrait;
 
     public const EVENT_BEFORE_USER_SAVE = 'RockSoftwareUsers.beforeUserSave';
+
+    public const EMAIL = 'email';
+    public const NAME = 'name';
+    public const PHONE = 'phone';
+    public const IS_ACTIVE = 'is_active';
+    public const ACCESS_FROM = 'access_from';
+    public const ACCESS_UNTIL = 'access_until';
+    public const PASSWORD = 'password';
 
     /**
      * @param array<string, mixed> $claims Verified ID token claims.
@@ -52,27 +61,21 @@ class UserProvisioner
         }
 
         $users = $this->users();
-        $schema = $users->getSchema();
-        $fields = self::fields();
         $identities = $this->identities();
 
         $identity = $identities->findByExternalId($subject);
-        $user = $identity === null ? null : $users->find()->where(['id' => $identity->user_id])->first();
+        $user = $identity === null ? null : $this->findById($identity->user_id);
         if ($identity !== null && $user === null) {
             // The application deleted the user; the stale link goes with it.
             $identities->deleteOrFail($identity);
             $identity = null;
         }
         if ($user === null && ($claims['email_verified'] ?? false) === true) {
-            $linked = $identities->find()->select(['user_id']);
-            $user = $users->find()
-                ->where([$fields['email'] => $email, $users->aliasField('id') . ' NOT IN' => $linked])
-                ->first();
+            $user = $this->findUnlinkedByEmail($email);
         }
 
-        if ($user !== null && !self::isActive($user)) {
-            // Closed in this application; the provider's word does not reopen it.
-            throw new UserInactiveException(sprintf('%s is deactivated in this application.', $email));
+        if ($user !== null) {
+            UserAccess::check($user);
         }
 
         $isNew = $user === null;
@@ -82,18 +85,14 @@ class UserProvisioner
         $user ??= $users->newEmptyEntity();
 
         $name = $claims['name'] ?? null;
-        $values = [$fields['email'] => $email];
-        if (self::has($schema, $fields['name'])) {
-            $values[(string)$fields['name']] = is_string($name) && $name !== '' ? $name : $email;
-        }
-        if ($isNew && self::has($schema, $fields['is_active'])) {
-            $values[(string)$fields['is_active']] = true;
-        }
+        $values = [
+            self::EMAIL => $email,
+            self::NAME => is_string($name) && $name !== '' ? $name : $email,
+        ];
         if ($isNew) {
-            $values += $this->requiredDefaults($schema);
+            $values[self::IS_ACTIVE] = true;
+            $values += $this->requiredDefaults($users->getSchema());
         }
-        // One field at a time: set() with an array is deprecated from 5.2, and
-        // patch() does not exist before it.
         foreach ($values as $field => $value) {
             $user->set($field, $value, ['guard' => false]);
         }
@@ -104,9 +103,7 @@ class UserProvisioner
             'isNew' => $isNew,
         ]));
 
-        $connection = $users->getConnection();
-
-        return $connection->transactional(function () use ($users, $user, $identity, $identities, $subject) {
+        $save = function () use ($users, $user, $identity, $identities, $subject) {
             // The application's validation describes its own forms (a password on
             // create, for one); this data comes from the provider. Its rules, such
             // as a unique email address, still apply.
@@ -119,15 +116,17 @@ class UserProvisioner
             $identities->saveOrFail($identity);
 
             return $user;
-        });
+        };
+
+        return $users->getConnection()->transactional($save);
     }
 
     /**
      * Creates a user with no link to the identity provider, as a first
-     * sign-in would (the application's `RockSoftwareUsers.beforeUserSave` listeners run, a
-     * required password gets an unusable value). For an emergency sign-in on an
-     * empty development database; the first real sign-in with the same verified
-     * address links it.
+     * sign-in would (the application's `RockSoftwareUsers.beforeUserSave`
+     * listeners run, a required password gets an unusable value). For an
+     * emergency sign-in on an empty development database; the first real
+     * sign-in or SCIM push with the same address links it.
      *
      * @param string $email The email address.
      * @return \Cake\Datasource\EntityInterface
@@ -135,18 +134,10 @@ class UserProvisioner
     public function createUser(string $email): EntityInterface
     {
         $users = $this->users();
-        $schema = $users->getSchema();
-        $fields = self::fields();
         $user = $users->newEmptyEntity();
 
-        $values = [$fields['email'] => $email];
-        if (self::has($schema, $fields['name'])) {
-            $values[(string)$fields['name']] = $email;
-        }
-        if (self::has($schema, $fields['is_active'])) {
-            $values[(string)$fields['is_active']] = true;
-        }
-        $values += $this->requiredDefaults($schema);
+        $values = [self::EMAIL => $email, self::NAME => $email, self::IS_ACTIVE => true];
+        $values += $this->requiredDefaults($users->getSchema());
         foreach ($values as $field => $value) {
             $user->set($field, $value, ['guard' => false]);
         }
@@ -161,6 +152,42 @@ class UserProvisioner
     }
 
     /**
+     * A user no identity is linked to yet, by email address in any case.
+     *
+     * @param string $email The address.
+     * @return \Cake\Datasource\EntityInterface|null
+     */
+    public function findUnlinkedByEmail(string $email): ?EntityInterface
+    {
+        $users = $this->users();
+        $linked = $this->identities()->find()->select(['user_id']);
+
+        /** @var \Cake\Datasource\EntityInterface|null */
+        return $users->find()
+            ->where([
+                'LOWER(' . $users->aliasField(self::EMAIL) . ')' => mb_strtolower($email),
+                $users->aliasField('id') . ' NOT IN' => $linked,
+            ])
+            ->first();
+    }
+
+    /**
+     * A user by email address in any case.
+     *
+     * @param string $email The address.
+     * @return \Cake\Datasource\EntityInterface|null
+     */
+    public function findByEmail(string $email): ?EntityInterface
+    {
+        $users = $this->users();
+
+        /** @var \Cake\Datasource\EntityInterface|null */
+        return $users->find()
+            ->where(['LOWER(' . $users->aliasField(self::EMAIL) . ')' => mb_strtolower($email)])
+            ->first();
+    }
+
+    /**
      * Finds the user a subject identifier belongs to.
      *
      * @param string $subject The provider's subject identifier.
@@ -170,16 +197,38 @@ class UserProvisioner
     {
         $identity = $this->identities()->findByExternalId($subject);
 
-        /** @var \Cake\Datasource\EntityInterface|null */
-        return $identity === null ? null : $this->users()->find()->where(['id' => $identity->user_id])->first();
+        return $identity === null ? null : $this->findById($identity->user_id);
     }
 
     /**
+     * @param int $id The user id.
+     * @return \Cake\Datasource\EntityInterface|null
+     */
+    public function findById(int $id): ?EntityInterface
+    {
+        $users = $this->users();
+
+        /** @var \Cake\Datasource\EntityInterface|null */
+        return $users->find()->where([$users->aliasField('id') => $id])->first();
+    }
+
+    /**
+     * The application's users table: its own `UsersTable` class when it has
+     * one (which may extend the plugin's), else the plugin's.
+     *
      * @return \Cake\ORM\Table
      */
     public function users(): Table
     {
-        return $this->fetchTable((string)Configure::read('RockSoftwareUsers.userModel', 'Users'));
+        $locator = $this->getTableLocator();
+        if ($locator->exists('Users')) {
+            return $locator->get('Users');
+        }
+        $appClass = Configure::read('App.namespace', 'App') . '\\Model\\Table\\UsersTable';
+
+        return class_exists($appClass)
+            ? $locator->get('Users')
+            : $locator->get('Users', ['className' => UsersTable::class]);
     }
 
     /**
@@ -192,51 +241,28 @@ class UserProvisioner
     }
 
     /**
-     * Column names on the users table, overridable through `RockSoftwareUsers.fields`. A null
-     * or missing column is not written.
+     * The ids of `RockSoftwareUsers.systemUsers`: rows the application runs
+     * jobs as (konekallio-erp's R2D2), which SCIM never touches and the users
+     * page never calls missing from Rock Software ID.
      *
-     * @return array{email: string, name: string|null, is_active: string|null, password: string|null}
+     * @return array<int>
      */
-    public static function fields(): array
+    public static function systemUserIds(): array
     {
-        /** @var array{email: string, name: string|null, is_active: string|null, password: string|null} */
-        return array_merge([
-            'email' => 'email',
-            'name' => 'name',
-            'is_active' => 'is_active',
-            'password' => 'password',
-        ], (array)Configure::read('RockSoftwareUsers.fields', []));
+        return array_values(array_map('intval', (array)Configure::read('RockSoftwareUsers.systemUsers', [])));
     }
 
     /**
-     * Whether the user may sign in: true unless the active column exists and
-     * is off.
-     *
-     * @param \Cake\Datasource\EntityInterface $user The user.
-     * @return bool
-     */
-    public static function isActive(EntityInterface $user): bool
-    {
-        $field = self::fields()['is_active'];
-        if ($field === null || !(new self())->users()->getSchema()->hasColumn($field)) {
-            return true;
-        }
-
-        return (bool)$user->get($field);
-    }
-
-    /**
-     * The name shown for a user: the name column, else the email address.
+     * The name shown for a user: the name, else the email address.
      *
      * @param \Cake\Datasource\EntityInterface $user The user.
      * @return string
      */
     public static function displayName(EntityInterface $user): string
     {
-        $fields = self::fields();
-        $name = $fields['name'] === null ? null : $user->get($fields['name']);
+        $name = $user->get(self::NAME);
 
-        return is_string($name) && $name !== '' ? $name : (string)$user->get($fields['email']);
+        return is_string($name) && $name !== '' ? $name : (string)$user->get(self::EMAIL);
     }
 
     /**
@@ -248,26 +274,14 @@ class UserProvisioner
      * @param \Cake\Database\Schema\TableSchemaInterface $schema The users table.
      * @return array<string, mixed>
      */
-    private function requiredDefaults(TableSchemaInterface $schema): array
+    public function requiredDefaults(TableSchemaInterface $schema): array
     {
         $values = [];
-        foreach (array_filter([self::fields()['password']]) as $column) {
-            $definition = $schema->getColumn($column);
-            if ($definition !== null && !$definition['null'] && $definition['default'] === null) {
-                $values[$column] = '!rsu:' . bin2hex(random_bytes(24));
-            }
+        $definition = $schema->getColumn(self::PASSWORD);
+        if ($definition !== null && !$definition['null'] && $definition['default'] === null) {
+            $values[self::PASSWORD] = '!rsu:' . bin2hex(random_bytes(24));
         }
 
         return $values;
-    }
-
-    /**
-     * @param \Cake\Database\Schema\TableSchemaInterface $schema The users table.
-     * @param string|null $column The column.
-     * @return bool
-     */
-    private static function has(TableSchemaInterface $schema, ?string $column): bool
-    {
-        return $column !== null && $schema->hasColumn($column);
     }
 }

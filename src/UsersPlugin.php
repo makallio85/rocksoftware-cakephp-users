@@ -22,12 +22,15 @@ use Cake\Routing\RouteBuilder;
 use Psr\Http\Server\MiddlewareInterface;
 use RockSoftware\Users\Command\ConfigureCommand;
 use RockSoftware\Users\Command\EmergencySignInCommand;
+use RockSoftware\Users\Command\RestoreAccessCommand;
+use RockSoftware\Users\Command\RevocationsCommand;
 use RockSoftware\Users\Command\SetPasswordCommand;
 use RockSoftware\Users\Command\StatusCommand;
 use RockSoftware\Users\Middleware\BackchannelLogoutMiddleware;
 use RockSoftware\Users\Middleware\ClientMetadataMiddleware;
 use RockSoftware\Users\Middleware\ProvisionMiddleware;
 use RockSoftware\Users\Middleware\RequireSignInMiddleware;
+use RockSoftware\Users\Middleware\ScimMiddleware;
 use RockSoftware\Users\Middleware\SessionCheckMiddleware;
 use RockSoftware\Users\Service\AuthenticationServiceProvider;
 
@@ -46,13 +49,15 @@ use RockSoftware\Users\Service\AuthenticationServiceProvider;
  * - `GET|POST /auth/sign-out` — sign out here and at the provider
  * - `POST /auth/backchannel-logout` — the provider's back-channel logout URI
  * - `POST /auth/provision` — the provider hands the application its connection
+ * - `/auth/scim/v2/*` — SCIM 2.0: Rock Software ID pushes people and groups
  * - `GET /auth/client-metadata` — the addresses the provider must register
  * - `GET|POST /auth/emergency/{token}` — single-use emergency sign-in
  * - `GET /auth/settings` (+ `POST update`, `POST test`, `POST allow-provisioning`,
  *   `POST password-sign-in`, `POST sessions`) —
  *   Settings › Identity provider
- * - `GET /auth/users`, `GET /auth/users/{id}` (+ `POST deactivate`, `POST
- *   activate`, `POST end-sessions`) — the users page
+ * - `GET /auth/users`, `GET /auth/users/{id}` (+ `POST end-sessions`, `POST
+ *   emergency-link`) — the users page; `GET /auth/users/held-removals` (+ `POST
+ *   approve`, `POST reject`, for all of them) — removals the mass-removal stop held
  */
 class UsersPlugin extends BasePlugin
 {
@@ -62,13 +67,19 @@ class UsersPlugin extends BasePlugin
 
     public const CLIENT_METADATA_PATH = '/auth/client-metadata';
 
+    public const SCIM_PATH = '/auth/scim/v2';
+
     /**
      * Every setting and its default. An application overrides any of them in
      * `Configure::write('RockSoftwareUsers', [...])` (usually `config/app.php`).
      *
-     * - `userModel`: the application's users table.
-     * - `fields`: column names on it (`email`, `name`, `is_active`,
-     *   `password`); a null or missing column is not written.
+     * - `systemUsers`: ids of `users` rows the application runs jobs as
+     *   (konekallio-erp's R2D2); SCIM never touches them.
+     * - `alertWebhookUrl`: an https address that also receives every alert
+     *   (`AccessManager::EVENT_ALERT`) as JSON, e.g. an IT monitoring
+     *   application; null for none.
+     * - `timezone`: the zone dates are shown in to people (access start and
+     *   end, emergency link expiry).
      * - `signInUrl` / `loginRedirect`: the sign-in page, and where to go after.
      * - `layout`: the sign-in and emergency pages' layout (the plugin's own).
      * - `appName`: shown on the plugin's sign-in layout.
@@ -88,7 +99,7 @@ class UsersPlugin extends BasePlugin
      * - `locale`: the language of the plugin's texts when it differs from the
      *   application's locale (e.g. `fi`); null follows the application.
      * - `passwordSignIn`: `true` when people may also sign in with a password
-     *   kept in the users table (`fields.password`). The sign-in page then
+     *   kept in the users table (`users.password`). The sign-in page then
      *   shows the email and password form, and the settings page a switch to
      *   turn it off and on. An application that still has a password form of
      *   its own reads the switch with `SettingsTable::passwordSignInAllowed()`.
@@ -101,8 +112,9 @@ class UsersPlugin extends BasePlugin
      * @var array<string, mixed>
      */
     public const DEFAULTS = [
-        'userModel' => 'Users',
-        'fields' => [],
+        'systemUsers' => [],
+        'alertWebhookUrl' => null,
+        'timezone' => 'Europe/Helsinki',
         'signInUrl' => '/auth',
         'signInRedirect' => '/',
         'layout' => 'RockSoftware/Users.sign_in',
@@ -235,6 +247,7 @@ class UsersPlugin extends BasePlugin
         $earlyEndpoints = [
             new BackchannelLogoutMiddleware(),
             new ProvisionMiddleware(),
+            new ScimMiddleware(),
             new ClientMetadataMiddleware(),
         ];
         foreach ($earlyEndpoints as $tokenEndpoint) {
@@ -281,6 +294,8 @@ class UsersPlugin extends BasePlugin
             $builder->connect('/backchannel-logout', ['controller' => 'SignIn', 'action' => 'backchannelLogout']);
             $builder->connect('/provision', ['controller' => 'SignIn', 'action' => 'provision']);
             $builder->connect('/client-metadata', ['controller' => 'SignIn', 'action' => 'clientMetadata']);
+            $builder->connect('/scim/v2', ['controller' => 'SignIn', 'action' => 'scim']);
+            $builder->connect('/scim/v2/*', ['controller' => 'SignIn', 'action' => 'scim']);
             $builder->connect('/emergency/{token}', ['controller' => 'SignIn', 'action' => 'emergency'])
                 ->setPass(['token'])
                 ->setPatterns(['token' => '[0-9a-f]{64}']);
@@ -297,11 +312,14 @@ class UsersPlugin extends BasePlugin
             );
             $builder->connect('/settings/sessions', ['controller' => 'Settings', 'action' => 'sessions']);
             $builder->connect('/users', ['controller' => 'Users', 'action' => 'index']);
+            $builder->connect('/users/held-removals', ['controller' => 'Users', 'action' => 'heldRevocations']);
+            foreach (['approve' => 'approveRevocations', 'reject' => 'rejectRevocations'] as $suffix => $action) {
+                $builder->connect('/users/held-removals/' . $suffix, ['controller' => 'Users', 'action' => $action]);
+            }
             $userActions = [
                 'view' => '',
-                'deactivate' => '/deactivate',
-                'activate' => '/activate',
                 'endSessions' => '/end-sessions',
+                'emergencyLink' => '/emergency-link',
             ];
             foreach ($userActions as $action => $suffix) {
                 $builder->connect('/users/{id}' . $suffix, ['controller' => 'Users', 'action' => $action])
@@ -320,6 +338,8 @@ class UsersPlugin extends BasePlugin
         return $commands
             ->add(ConfigureCommand::defaultName(), ConfigureCommand::class)
             ->add(EmergencySignInCommand::defaultName(), EmergencySignInCommand::class)
+            ->add(RestoreAccessCommand::defaultName(), RestoreAccessCommand::class)
+            ->add(RevocationsCommand::defaultName(), RevocationsCommand::class)
             ->add(SetPasswordCommand::defaultName(), SetPasswordCommand::class)
             ->add(StatusCommand::defaultName(), StatusCommand::class);
     }

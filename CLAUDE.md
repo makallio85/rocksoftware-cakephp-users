@@ -26,16 +26,25 @@ composer cs-check
    and limits, sign-in history, the users page, the user menu, the settings page). Installing stays three steps (require, `addPlugin`, migrate): the
    plugin wires its own middleware in `UsersPlugin::middleware()`, every setting has a
    default in `UsersPlugin::DEFAULTS`, and its data lives in its own tables
-   (`rock_software_users_identities`), never in columns it asks an application to add. Only `email` on
-   `users` is assumed; other columns are written when present. Roles, permissions, audit logging and an application's own second
+   (`rock_software_users_*`). **Of `users`, the plugin owns the people columns** —
+   `email`, `name`, `phone`, `is_active`, `access_from`, `access_until` — which its
+   migration adds to the application's existing table; everything else on `users` is the
+   application's. Roles, permissions, audit logging and an application's own second
    factor stay in the application, reached through the events and `RockSoftwareUsers.settingsAccess`.
-4. **Texts are translatable.** Every user-facing string goes through `__d('rock_software_users', …)` and
-   has a Finnish entry in `resources/locales/fi/rock_software_users.po` in the same change.
-5. **Configuration**: the provider connection lives in `rock_software_users_settings` (secret encrypted
+4. **Rock Software ID owns people.** They arrive through SCIM (`src/Service/Scim/`);
+   the application manages only permissions. **Never delete a user row**: revoke access
+   (`AccessManager`), so history and permissions survive and a returning person gets
+   them back. Every way in (Rock Software ID, password, emergency link, the session
+   check) asks `UserAccess`; add any new one there too. SCIM requests are tested over
+   HTTP the way Authentik's client sends them (`ScimMiddlewareTest`).
+5. **Texts are translatable.** Every user-facing string goes through `__d('rock_software_users', …)` and
+   has a Finnish entry in `resources/locales/fi/rock_software_users.po` in the same change
+   (`__dn` plurals as `msgid_plural` / `msgstr[0]` / `msgstr[1]`).
+6. **Configuration**: the provider connection lives in `rock_software_users_settings` (secret encrypted
    by `SecretCipher`); application shape lives in `Configure::read('RockSoftwareUsers')`. Nothing in
    environment variables.
-6. **Tests** run on SQLite against `tests/TestCase/FakeProvider.php`. Fixtures hold a
+7. **Tests** run on SQLite against `tests/TestCase/FakeProvider.php`. Fixtures hold a
    fresh installation's rows only; `identity_source_types` rows come from the
    migration, and each test creates the users it needs. The test application has no
    sign-in wiring of its own, which is what proves the plugin needs none.
-7. Do not commit `vendor/`, `composer.lock`, `tmp/` or `.phpunit.cache/`.
+8. Do not commit `vendor/`, `composer.lock`, `tmp/` or `.phpunit.cache/`.

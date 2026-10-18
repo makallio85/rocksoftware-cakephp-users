@@ -12,32 +12,41 @@ use Cake\Event\EventManager;
 use Cake\Http\Exception\ForbiddenException;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Response;
+use Cake\I18n\DateTime;
+use Cake\ORM\Query\SelectQuery;
 use Cake\ORM\Table;
+use RockSoftware\Users\Command\EmergencySignInCommand;
+use RockSoftware\Users\Model\Entity\AccessChangeType;
 use RockSoftware\Users\Model\Entity\SessionEventType;
+use RockSoftware\Users\Service\AccessManager;
 use RockSoftware\Users\Service\SignInHistory;
+use RockSoftware\Users\Service\UserAccess;
 use RockSoftware\Users\Service\UserProvisioner;
 
 /**
- * The users page: who may use the application, how they last signed in, and
- * the sign-in history of each.
+ * The users page. People come from Rock Software ID (SCIM), so it is
+ * read-only: who they are, whether they have access, their access and
+ * sign-in history. The application sets permissions on its own pages, linked
+ * from here through `RockSoftwareUsers.userActions`.
  *
- *   GET  /auth/users                    — the list (`?q=`, `?status=active|inactive|all`)
- *   GET  /auth/users/{id}               — one user and their history
- *   POST /auth/users/{id}/deactivate    — close the user's access here
- *   POST /auth/users/{id}/activate      — open it again
- *   POST /auth/users/{id}/end-sessions  — sign the user out everywhere in this application
+ *   GET  /auth/users                         — the list (`?q=`, `?access=`)
+ *   GET  /auth/users/{id}                    — one user
+ *   POST /auth/users/{id}/end-sessions       — sign the user out of this application
+ *   GET|POST /auth/users/{id}/emergency-link — a single-use sign-in link, shown once
+ *   GET  /auth/users/held-removals           — removals the mass-removal stop held
+ *   POST /auth/users/held-removals/approve   — approve them all: access goes
+ *   POST /auth/users/held-removals/reject    — reject them all: access stays
  *
- * Access to the application itself is granted in Rock Software ID; this page
- * only closes it here, and roles stay the application's. An application adds
- * its own columns and sections through events, filling the `ArrayObject` in
- * the event data:
+ * An application adds to it through events, filling the `ArrayObject` in the
+ * event data:
  *
  * - `RockSoftwareUsers.userListColumns` — `columns[] = ['label' => string, 'value' => fn(EntityInterface $user): string]`
  * - `RockSoftwareUsers.userViewSections` — `sections[] = ['title' => string, 'element' => string, 'data' => array]`,
  *   rendered with the application's element and `$user`
+ * - `RockSoftwareUsers.userActions` — `actions[] = ['label' => string, 'url' => fn(EntityInterface $user): string|array|null]`,
+ *   a button per user on the list and the user's page (null hides it), e.g. *Manage permissions*
  *
- * It tells of each change through `RockSoftwareUsers.userDeactivated`, `RockSoftwareUsers.userActivated`
- * and `RockSoftwareUsers.sessionsEnded` (data: user, actor).
+ * It tells of `RockSoftwareUsers.sessionsEnded` (data: user, actor).
  *
  * Who may open it: `RockSoftwareUsers.usersAccess`, else `RockSoftwareUsers.settingsAccess`.
  *
@@ -50,9 +59,17 @@ class UsersController extends SettingsBaseController
 
     public const EVENT_LIST_COLUMNS = 'RockSoftwareUsers.userListColumns';
     public const EVENT_VIEW_SECTIONS = 'RockSoftwareUsers.userViewSections';
-    public const EVENT_DEACTIVATED = 'RockSoftwareUsers.userDeactivated';
-    public const EVENT_ACTIVATED = 'RockSoftwareUsers.userActivated';
+    public const EVENT_USER_ACTIONS = 'RockSoftwareUsers.userActions';
     public const EVENT_SESSIONS_ENDED = 'RockSoftwareUsers.sessionsEnded';
+
+    public const FILTER_ACCESS = 'access';
+    public const FILTER_STARTING = 'starting';
+    public const FILTER_NONE = 'none';
+    public const FILTER_ATTENTION = 'attention';
+    public const FILTER_ALL = 'all';
+
+    /** The validity choices for a link made on the page, in minutes. */
+    public const EMERGENCY_LINK_MINUTES = [60, 240, 1440];
 
     /**
      * @return void
@@ -98,30 +115,26 @@ class UsersController extends SettingsBaseController
     public function index(): void
     {
         $users = $this->users();
-        $schema = $users->getSchema();
-        $fields = UserProvisioner::fields();
-        $hasName = $fields['name'] !== null && $schema->hasColumn($fields['name']);
-        $hasActive = $fields['is_active'] !== null && $schema->hasColumn($fields['is_active']);
-
         $search = trim((string)$this->getRequest()->getQuery('q'));
-        $status = (string)$this->getRequest()->getQuery('status', 'active');
-        if (!in_array($status, ['active', 'inactive', 'all'], true)) {
-            $status = 'active';
+        $filter = (string)$this->getRequest()->getQuery('access', self::FILTER_ACCESS);
+        if (!in_array($filter, array_keys(self::filters()), true)) {
+            $filter = self::FILTER_ACCESS;
         }
 
         $query = $users->find();
         if ($search !== '') {
             $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search) . '%';
-            $or = [$users->aliasField($fields['email']) . ' LIKE' => $like];
-            if ($hasName) {
-                $or[$users->aliasField((string)$fields['name']) . ' LIKE'] = $like;
+            $or = [];
+            foreach ([UserProvisioner::EMAIL, UserProvisioner::NAME, UserProvisioner::PHONE] as $column) {
+                $or[$users->aliasField($column) . ' LIKE'] = $like;
             }
             $query->where(['OR' => $or]);
         }
-        if ($hasActive && $status !== 'all') {
-            $query->where([$users->aliasField((string)$fields['is_active']) => $status === 'active']);
-        }
-        $query->orderBy([$users->aliasField($hasName ? (string)$fields['name'] : $fields['email']) => 'ASC']);
+        $this->applyFilter($query, $filter);
+        $query->orderBy([
+            $users->aliasField(UserProvisioner::NAME) => 'ASC',
+            $users->aliasField(UserProvisioner::EMAIL) => 'ASC',
+        ]);
 
         $page = $this->paginate($query, ['limit' => self::PAGE_SIZE, 'maxLimit' => self::PAGE_SIZE]);
         $ids = [];
@@ -136,15 +149,18 @@ class UsersController extends SettingsBaseController
             'users' => $page,
         ]));
 
+        /** @var \RockSoftware\Users\Model\Table\HeldRevocationsTable $held */
+        $held = $this->fetchTable('RockSoftware/Users.HeldRevocations');
         $this->set([
             'users' => $page,
-            'fields' => $fields,
-            'hasActive' => $hasActive,
             'search' => $search,
-            'status' => $status,
-            'linked' => $this->linkedUserIds($ids),
+            'filter' => $filter,
+            'filters' => self::filters(),
+            'statuses' => $this->statuses($page->toArray()),
             'lastSignIns' => $this->fetchTable('RockSoftware/Users.SessionEvents')->latestSignIns($ids),
             'columns' => $columns->getArrayCopy(),
+            'actions' => $this->actions(),
+            'heldCount' => count($held->pending()),
         ]);
     }
 
@@ -155,14 +171,18 @@ class UsersController extends SettingsBaseController
     public function view(string $id): void
     {
         $user = $this->user($id);
+        $userId = (int)$user->get('id');
         /** @var \RockSoftware\Users\Model\Table\SessionEventsTable $events */
         $events = $this->fetchTable('RockSoftware/Users.SessionEvents');
-        $history = $events->forUser((int)$user->get('id'));
+        $history = $events->forUser($userId);
+        /** @var \RockSoftware\Users\Model\Table\AccessChangesTable $changes */
+        $changes = $this->fetchTable('RockSoftware/Users.AccessChanges');
+        $accessHistory = $changes->forUser($userId);
 
-        $actorIds = array_values(array_unique(array_filter(array_map(
-            fn($event) => $event->actor_user_id,
-            $history,
-        ))));
+        $actorIds = array_values(array_unique(array_filter([
+            ...array_map(fn($event) => $event->actor_user_id, $history),
+            ...array_map(fn($change) => $change->actor_user_id, $accessHistory),
+        ])));
         $actors = [];
         if ($actorIds !== []) {
             foreach ($this->users()->find()->where([$this->users()->aliasField('id') . ' IN' => $actorIds]) as $actor) {
@@ -177,39 +197,19 @@ class UsersController extends SettingsBaseController
             'user' => $user,
         ]));
 
-        $fields = UserProvisioner::fields();
         $this->set([
             'user' => $user,
-            'fields' => $fields,
-            'hasActive' => $fields['is_active'] !== null
-                && $this->users()->getSchema()->hasColumn($fields['is_active']),
-            'isActive' => UserProvisioner::isActive($user),
-            'isSelf' => $this->isSelf($user),
-            'identity' => (new UserProvisioner())->identities()->findForUser((int)$user->get('id')),
-            'lastSignIn' => $events->latestSignIns([(int)$user->get('id')])[(int)$user->get('id')] ?? null,
+            'status' => $this->statuses([$user])[$userId],
+            'canIssueLink' => UserAccess::allows($user),
+            'identity' => (new UserProvisioner())->identities()->findForUser($userId),
+            'lastSignIn' => $events->latestSignIns([$userId])[$userId] ?? null,
             'history' => $history,
+            'accessHistory' => $accessHistory,
             'actors' => $actors,
+            'actions' => $this->actions(),
             'retentionDays' => $this->fetchTable('RockSoftware/Users.Settings')->sessionLimits()['retention_days'],
             'sections' => $sections->getArrayCopy(),
         ]);
-    }
-
-    /**
-     * @param string $id The user.
-     * @return \Cake\Http\Response|null
-     */
-    public function deactivate(string $id): ?Response
-    {
-        return $this->setActive($id, false);
-    }
-
-    /**
-     * @param string $id The user.
-     * @return \Cake\Http\Response|null
-     */
-    public function activate(string $id): ?Response
-    {
-        return $this->setActive($id, true);
     }
 
     /**
@@ -226,7 +226,10 @@ class UsersController extends SettingsBaseController
             'user_id' => (int)$user->get('id'),
             'actor_user_id' => $this->actorId(),
         ], $this->getRequest());
-        $this->notify(self::EVENT_SESSIONS_ENDED, $user);
+        EventManager::instance()->dispatch(new Event(self::EVENT_SESSIONS_ENDED, $this, [
+            'user' => $user,
+            'actor' => $this->Authentication->getIdentity()?->getOriginalData(),
+        ]));
         $name = UserProvisioner::displayName($user);
         $this->Flash->success(__d('rock_software_users', '{0} is signed out of this application.', $name));
 
@@ -234,37 +237,234 @@ class UsersController extends SettingsBaseController
     }
 
     /**
+     * A single-use link that signs the user in without Rock Software ID, for
+     * when it is down: GET asks how long it stays valid, POST makes it and
+     * shows it once. Only for a user with access now.
+     *
      * @param string $id The user.
-     * @param bool $active Activate or deactivate.
      * @return \Cake\Http\Response|null
      */
-    private function setActive(string $id, bool $active): ?Response
+    public function emergencyLink(string $id): ?Response
     {
-        $this->getRequest()->allowMethod(['post']);
         $user = $this->user($id);
-        $field = UserProvisioner::fields()['is_active'];
-        if ($field === null || !$this->users()->getSchema()->hasColumn($field)) {
-            throw new NotFoundException();
-        }
-        if (!$active && $this->isSelf($user)) {
-            $this->Flash->error(__d('rock_software_users', 'You cannot deactivate yourself.'));
+        if (!UserAccess::allows($user)) {
+            $this->Flash->error(
+                __d('rock_software_users', 'Emergency sign-in links work only for people with access.'),
+            );
 
             return $this->redirect(['action' => 'view', $id]);
         }
-        $user->set($field, $active, ['guard' => false]);
-        $this->users()->saveOrFail($user, ['validate' => false]);
-        (new SignInHistory())->record(
-            $active ? SessionEventType::USER_ACTIVATED : SessionEventType::USER_DEACTIVATED,
-            ['user_id' => (int)$user->get('id'), 'actor_user_id' => $this->actorId()],
-            $this->getRequest(),
-        );
-        $this->notify($active ? self::EVENT_ACTIVATED : self::EVENT_DEACTIVATED, $user);
-        $name = UserProvisioner::displayName($user);
-        $this->Flash->success($active
-            ? __d('rock_software_users', '{0} can sign in again.', $name)
-            : __d('rock_software_users', '{0} is deactivated and signed out of this application.', $name));
+        $link = null;
+        $until = null;
+        if ($this->getRequest()->is('post')) {
+            $minutes = (int)$this->getRequest()->getData('minutes');
+            if (!in_array($minutes, self::EMERGENCY_LINK_MINUTES, true)) {
+                $minutes = 240;
+            }
+            /** @var \RockSoftware\Users\Model\Table\EmergencySignInsTable $links */
+            $links = $this->fetchTable('RockSoftware/Users.EmergencySignIns');
+            $token = $links->issue((int)$user->get('id'), $minutes);
+            /** @var \RockSoftware\Users\Model\Table\AccessChangesTable $changes */
+            $changes = $this->fetchTable('RockSoftware/Users.AccessChanges');
+            $changes->record((int)$user->get('id'), AccessChangeType::EMERGENCY_LINK_ISSUED, [
+                'actor_user_id' => $this->actorId(),
+                'detail' => 'users page, valid ' . $minutes . ' min',
+            ]);
+            $link = EmergencySignInCommand::linkFor($token);
+            $until = DateTime::now()->addMinutes($minutes);
+            // The page holds a live credential: never cached anywhere.
+            $this->setResponse($this->getResponse()->withHeader('Cache-Control', 'no-store'));
+        }
 
-        return $this->redirect(['action' => 'view', $id]);
+        $this->set([
+            'user' => $user,
+            'link' => $link,
+            'until' => $until,
+            'choices' => self::EMERGENCY_LINK_MINUTES,
+        ]);
+
+        return null;
+    }
+
+    /**
+     * @return void
+     */
+    public function heldRevocations(): void
+    {
+        /** @var \RockSoftware\Users\Model\Table\HeldRevocationsTable $table */
+        $table = $this->fetchTable('RockSoftware/Users.HeldRevocations');
+        $pending = $table->pending();
+        $provisioner = new UserProvisioner();
+        $rows = [];
+        foreach ($pending as $held) {
+            $rows[] = ['held' => $held, 'user' => $provisioner->findById($held->user_id)];
+        }
+        $this->set(['rows' => $rows, 'activeCount' => $this->activeCount()]);
+    }
+
+    /**
+     * @return \Cake\Http\Response|null
+     */
+    public function approveRevocations(): ?Response
+    {
+        return $this->decide(true);
+    }
+
+    /**
+     * @return \Cake\Http\Response|null
+     */
+    public function rejectRevocations(): ?Response
+    {
+        return $this->decide(false);
+    }
+
+    /**
+     * The access filters, in the order the page offers them.
+     *
+     * @return array<string, string>
+     */
+    public static function filters(): array
+    {
+        return [
+            self::FILTER_ACCESS => __d('rock_software_users', 'Has access or starting'),
+            self::FILTER_STARTING => __d('rock_software_users', 'Starting'),
+            self::FILTER_NONE => __d('rock_software_users', 'No access'),
+            self::FILTER_ATTENTION => __d('rock_software_users', 'Needs attention'),
+            self::FILTER_ALL => __d('rock_software_users', 'All'),
+        ];
+    }
+
+    /**
+     * @param bool $approve Approve or reject.
+     * @return \Cake\Http\Response|null
+     */
+    private function decide(bool $approve): ?Response
+    {
+        $this->getRequest()->allowMethod(['post']);
+        /** @var \RockSoftware\Users\Model\Table\HeldRevocationsTable $table */
+        $table = $this->fetchTable('RockSoftware/Users.HeldRevocations');
+        $pending = $table->pending();
+        $access = new AccessManager();
+        foreach ($pending as $held) {
+            $approve ? $access->approve($held, $this->actorId()) : $access->reject($held, $this->actorId());
+        }
+        $this->Flash->success($approve
+            ? __d('rock_software_users', 'Access removed for {0} people.', count($pending))
+            : __d('rock_software_users', '{0} people keep their access.', count($pending)));
+
+        return $this->redirect(['action' => 'index']);
+    }
+
+    /**
+     * @param \Cake\ORM\Query\SelectQuery $query The users query.
+     * @param string $filter One of the `FILTER_*` constants.
+     * @return void
+     */
+    private function applyFilter(SelectQuery $query, string $filter): void
+    {
+        $users = $this->users();
+        $active = $users->aliasField(UserProvisioner::IS_ACTIVE);
+        $from = $users->aliasField(UserProvisioner::ACCESS_FROM);
+        $until = $users->aliasField(UserProvisioner::ACCESS_UNTIL);
+        $now = DateTime::now();
+        $id = $users->aliasField('id');
+
+        switch ($filter) {
+            case self::FILTER_ACCESS:
+                $query->where([$active => true, 'OR' => [$until . ' IS' => null, $until . ' >' => $now]]);
+                break;
+            case self::FILTER_STARTING:
+                $query->where([$active => true, $from . ' >' => $now]);
+                break;
+            case self::FILTER_NONE:
+                $query->where(['OR' => [$active => false, $until . ' <=' => $now]]);
+                break;
+            case self::FILTER_ATTENTION:
+                $provisioner = new UserProvisioner();
+                $conflicts = $provisioner->identities()->find()
+                    ->select(['user_id'])
+                    ->where(['pending_email IS NOT' => null]);
+                $held = $this->fetchTable('RockSoftware/Users.HeldRevocations')->find()
+                    ->select(['user_id'])
+                    ->where(['resolved_at IS' => null]);
+                $linked = $provisioner->identities()->find()->select(['user_id']);
+                // Not in Rock Software ID, unless a system user.
+                $missing = [$id . ' NOT IN' => $linked];
+                $system = UserProvisioner::systemUserIds();
+                if ($system !== []) {
+                    $missing[] = [$id . ' NOT IN' => $system];
+                }
+                $query->where(['OR' => [[$id . ' IN' => $conflicts], [$id . ' IN' => $held], $missing]]);
+                break;
+        }
+    }
+
+    /**
+     * What the page shows of each user's access.
+     *
+     * @param array<\Cake\Datasource\EntityInterface> $users The users.
+     * @return array<int, array{state: string, linked: bool, conflict: string|null, held: bool, system: bool}>
+     */
+    private function statuses(array $users): array
+    {
+        $ids = array_map(fn(EntityInterface $user): int => (int)$user->get('id'), $users);
+        if ($ids === []) {
+            return [];
+        }
+        $identities = [];
+        foreach ((new UserProvisioner())->identities()->find()->where(['user_id IN' => $ids]) as $identity) {
+            /** @var \RockSoftware\Users\Model\Entity\Identity $identity */
+            $identities[(int)$identity->user_id] = $identity;
+        }
+        $held = [];
+        $heldRows = $this->fetchTable('RockSoftware/Users.HeldRevocations')->find()
+            ->where(['user_id IN' => $ids, 'resolved_at IS' => null]);
+        foreach ($heldRows as $row) {
+            $held[(int)$row->get('user_id')] = true;
+        }
+        $system = UserProvisioner::systemUserIds();
+        $statuses = [];
+        foreach ($users as $user) {
+            $id = (int)$user->get('id');
+            $pending = isset($identities[$id]) ? $identities[$id]->get('pending_email') : null;
+            $statuses[$id] = [
+                'state' => UserAccess::state($user),
+                'linked' => isset($identities[$id]),
+                'conflict' => is_string($pending) ? $pending : null,
+                'held' => isset($held[$id]),
+                'system' => in_array($id, $system, true),
+            ];
+        }
+
+        return $statuses;
+    }
+
+    /**
+     * The application's per-user buttons.
+     *
+     * @return array<array{label: string, url: callable}>
+     */
+    private function actions(): array
+    {
+        $actions = new ArrayObject();
+        EventManager::instance()->dispatch(new Event(self::EVENT_USER_ACTIONS, $this, ['actions' => $actions]));
+
+        return array_values(array_filter(
+            $actions->getArrayCopy(),
+            fn($action): bool => is_array($action)
+                && is_string($action['label'] ?? null)
+                && is_callable($action['url'] ?? null),
+        ));
+    }
+
+    /**
+     * @return int
+     */
+    private function activeCount(): int
+    {
+        $users = $this->users();
+
+        return $users->find()->where([$users->aliasField(UserProvisioner::IS_ACTIVE) => true])->count();
     }
 
     /**
@@ -281,30 +481,12 @@ class UsersController extends SettingsBaseController
      */
     private function user(string $id): EntityInterface
     {
-        $user = $this->users()->find()->where([$this->users()->aliasField('id') => (int)$id])->first();
+        $user = (new UserProvisioner())->findById((int)$id);
         if (!$user instanceof EntityInterface) {
             throw new NotFoundException();
         }
 
         return $user;
-    }
-
-    /**
-     * @param array<int> $ids Users.
-     * @return array<int, bool>
-     */
-    private function linkedUserIds(array $ids): array
-    {
-        if ($ids === []) {
-            return [];
-        }
-        $linked = [];
-        foreach ((new UserProvisioner())->identities()->find()->where(['user_id IN' => $ids]) as $identity) {
-            /** @var \RockSoftware\Users\Model\Entity\Identity $identity */
-            $linked[(int)$identity->user_id] = true;
-        }
-
-        return $linked;
     }
 
     /**
@@ -315,27 +497,5 @@ class UsersController extends SettingsBaseController
         $id = $this->Authentication->getIdentity()?->getIdentifier();
 
         return $id === null ? null : (int)$id;
-    }
-
-    /**
-     * @param \Cake\Datasource\EntityInterface $user The user.
-     * @return bool
-     */
-    private function isSelf(EntityInterface $user): bool
-    {
-        return $this->actorId() === (int)$user->get('id');
-    }
-
-    /**
-     * @param string $name The event.
-     * @param \Cake\Datasource\EntityInterface $user The user changed.
-     * @return void
-     */
-    private function notify(string $name, EntityInterface $user): void
-    {
-        EventManager::instance()->dispatch(new Event($name, $this, [
-            'user' => $user,
-            'actor' => $this->Authentication->getIdentity()?->getOriginalData(),
-        ]));
     }
 }

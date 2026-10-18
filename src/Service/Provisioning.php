@@ -16,8 +16,9 @@ use Throwable;
 
 /**
  * `POST /auth/provision`: the identity provider hands the application its
- * connection (issuer, client ID, client secret, required group), so connecting
- * an application needs no shell. rocksoftware-identity#5, *Connecting
+ * connection (issuer, client ID, client secret, required group, and the SCIM
+ * token it will push people with, `scim_token`), so connecting an application
+ * needs no shell. rocksoftware-identity#5, *Connecting
  * applications automatically*, holds the design.
  *
  * The request carries a bearer token the provider issued through token
@@ -95,6 +96,13 @@ class Provisioning
         $clientId = $data['client_id'] ?? null;
         $secret = $data['client_secret'] ?? null;
         $group = $data['required_group'] ?? null;
+        $scimToken = $data['scim_token'] ?? null;
+        if (
+            $scimToken !== null
+            && (!is_string($scimToken) || !preg_match('/^[A-Za-z0-9_\-]{40,255}$/', $scimToken))
+        ) {
+            return 400;
+        }
         if (
             !is_string($issuer) || !is_string($clientId) || !is_string($secret)
             || ($group !== null && !is_string($group))
@@ -154,6 +162,7 @@ class Provisioning
                     $clientId,
                     $secret,
                     $group,
+                    $scimToken,
                     $remoteIp,
                 ): void {
                     if ($provisionings->used($jti)) {
@@ -171,14 +180,19 @@ class Provisioning
                         'client_id' => $clientId,
                         'remote_ip' => $remoteIp,
                     ]));
-                    $settings->store([
+                    $values = [
                         'issuer_url' => $issuer,
                         'client_id' => $clientId,
                         'client_secret' => $secret,
                         'required_group' => $group === null || trim($group) === '' ? null : trim($group),
                         'is_enabled' => true,
                         'provisioning_open_until' => null,
-                    ]);
+                    ];
+                    if (is_string($scimToken)) {
+                        // Only its hash is kept; Rock Software ID holds the token.
+                        $values['scim_token_hash'] = hash('sha256', $scimToken);
+                    }
+                    $settings->store($values);
                 },
             );
         } catch (Throwable $e) {
@@ -193,6 +207,7 @@ class Provisioning
             'issuer' => $issuer,
             'clientId' => $clientId,
             'requiredGroup' => $group,
+            'scim' => is_string($scimToken),
         ]));
 
         return 204;

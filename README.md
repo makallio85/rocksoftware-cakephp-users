@@ -17,12 +17,18 @@ everything; an application moving over reconnects to Rock Software ID (below).
 | Settings, events, session keys | `RockSoftwareUsers.*` |
 | Tables | `rock_software_users_*` |
 | Translation domain | `rock_software_users` |
-| Commands | `bin/cake rock_software_users …` | Each application keeps
-its `users` table as the anchor for its foreign keys; the plugin creates and refreshes
-those rows from the provider, so no application manages people itself. Installing it
-is three steps and no code.
+| Commands | `bin/cake rock_software_users …` |
 
-Design: [makallio85/rocksoftware-identity#5](https://github.com/makallio85/rocksoftware-identity/issues/5).
+Rock Software ID owns a person's whole lifecycle: who they are, when their access
+starts and ends, and which applications they may use. It pushes people to the
+application through **SCIM** before their first day; the plugin keeps them in the
+application's `users` table, whose people columns it owns, and refuses every way in
+outside their access. **An application manages only permissions.** No user is ever
+deleted: access is revoked, and the row, its history and its permissions stay.
+Installing it is three steps and no code.
+
+Design: [makallio85/rocksoftware-identity#5](https://github.com/makallio85/rocksoftware-identity/issues/5);
+the lifecycle: [#33](https://github.com/makallio85/rocksoftware-cakephp-users/issues/33).
 
 ## What it does
 
@@ -37,12 +43,14 @@ Design: [makallio85/rocksoftware-identity#5](https://github.com/makallio85/rocks
 | `GET\|POST /auth/emergency/{token}` | Single-use sign-in from `bin/cake rock_software_users emergency_sign_in` |
 | `GET /auth/settings`, `POST /auth/settings/update`, `POST /auth/settings/test` | Settings › Identity provider: issuer, client ID, write-only secret, required group. Save checks the server first and stores nothing if it does not answer |
 | `POST /auth/settings/password-sign-in`, `POST /auth/settings/sessions` | The password sign-in switch; the session limits and the sign-in history's retention |
-| `GET /auth/users`, `GET /auth/users/{id}`, `POST …/deactivate`, `POST …/activate`, `POST …/end-sessions` | The users page: who uses the application, how they last signed in, each user's sign-in history |
+| `GET /auth/users`, `GET /auth/users/{id}`, `POST …/end-sessions`, `GET\|POST …/emergency-link` | The users page, read-only: people, their access, access and sign-in history |
+| `GET /auth/users/held-removals`, `POST …/approve`, `POST …/reject` | Removals the mass-removal stop held |
+| `/auth/scim/v2/*` | SCIM 2.0: Rock Software ID pushes people and groups (bearer token) |
 
 Loading the plugin wires it into the application: its middleware hook places the
 back-channel logout before CSRF, provides session authentication when the application
 has none, adds `SessionCheckMiddleware` (signs out a session whose user is gone or
-deactivated, or which started before a back-channel logout) and requires sign-in for
+without access now, or which started before a back-channel logout) and requires sign-in for
 every route except the sign-in routes and `RockSoftwareUsers.publicPaths`. Every text has a Finnish
 translation (`resources/locales/fi/rock_software_users.po`, domain `rock_software_users`).
 
@@ -52,11 +60,13 @@ translation (`resources/locales/fi/rock_software_users.po`, domain `rock_softwar
 - The link between a user and the provider lives in the plugin's `rock_software_users_identities` table
   (`user_id`, `external_id`, `synced_at`, `last_login_at`, `sessions_valid_from`), so
   the application's `users` table needs no columns for it.
-- A user is found through their identity, else linked on a **verified** email address
-  (how existing local accounts move over), else created. Email, and name when the table
-  has it, are rewritten on every sign-in. A new row's NOT NULL `password` gets an
-  unusable value. A user deactivated in the application (`is_active` off) is refused:
-  the provider does not reopen access an administrator closed here (1.6).
+- People arrive through SCIM (below). A sign-in still finds a user through their
+  identity, else links one on a **verified** email address, else creates one, for an
+  application SCIM does not reach yet. Email and name are rewritten on every sign-in.
+  A new row's NOT NULL `password` gets an unusable value.
+- **Access** (`UserAccess`): `is_active` off, `access_from` in the future or
+  `access_until` passed refuses Rock Software ID, password and emergency sign-in, and
+  ends a running session on its next request.
 - A required provider group (`rock_software_users_settings.required_group`) gates access.
 - The connection lives in `rock_software_users_settings`; the client secret is encrypted with a key
   derived from `Security.salt`.
@@ -69,13 +79,20 @@ Authorization stays in the application. The plugin only establishes who the user
 
 ## Installing in an application
 
-The application needs a `users` table with `id` and `email`; `name` and `is_active` are
-written when present.
+The application creates its `users` table (`id`, `email`) in its own migrations. The
+plugin **adopts** it: its migration adds the columns it owns when they are missing —
+`name`, `phone`, `is_active`, `access_from`, `access_until` — and a unique index on
+`email`. It never drops or changes an application's column, ids stay, and it stops
+before changing anything when two users share an address. The plugin ships
+`RockSoftware\Users\Model\Table\UsersTable`; an application's own `UsersTable` may
+extend it, and one without its own class gets it.
 
-1. **Composer.** `composer require makallio85/rocksoftware-cakephp-users:^2.0` (Packagist; releases are
+1. **Composer.** `composer require makallio85/rocksoftware-cakephp-users:^3.0` (Packagist; releases are
    tags on `master`).
 2. **Plugin.** `$this->addPlugin(\RockSoftware\Users\UsersPlugin::class);` in `Application::bootstrap()`.
-3. **Migrations.** `bin/cake migrations migrate -p RockSoftware/Users`.
+3. **Migrations.** The application's first, then the plugin's:
+   `bin/cake migrations migrate && bin/cake migrations migrate -p RockSoftware/Users`
+   (in the deploy entrypoint and in `tests/bootstrap.php`).
 
 That is all. Then connect it to the provider (below) and sign in at `/auth`.
 
@@ -92,8 +109,9 @@ secret.
 | `settingsAccess` | `null` | Who may open `/auth/settings`: `fn($identity, $request): bool`. Null means anyone signed in, who is already in the required group |
 | `usersAccess` | `null` | Who may open `/auth/users`, the same kind of callable. Null means whoever may open the settings page |
 | `layout` | `'RockSoftware/Users.sign_in'` | Layout of the sign-in and emergency pages; name the application's own to restyle them |
-| `userModel` | `'Users'` | The application's users table |
-| `fields` | `[]` | Column names when they differ: `['email' => …, 'name' => …, 'is_active' => …, 'password' => …]`; null skips one |
+| `systemUsers` | `[]` | Ids of `users` rows the application runs jobs as (konekallio-erp's R2D2): SCIM never touches them |
+| `alertWebhookUrl` | `null` | An https address that also receives every alert as JSON (an IT monitoring application) |
+| `timezone` | `'Europe/Helsinki'` | The zone access dates and link expiry are shown in |
 | `createUsers` | `true` | Create a user on first sign-in when none matches |
 | `authentication` | `'auto'` | Provide authentication when the application has no `AuthenticationMiddleware`; `true`/`false` force it |
 | `requireSignIn` | `'auto'` | Require sign-in everywhere when the plugin provides authentication; `true`/`false` force it |
@@ -125,13 +143,31 @@ of its pages are public; point its `unauthenticatedRedirect` at `/auth`.
   | `RockSoftwareUsers.provisioned` | `issuer`, `clientId`, `requiredGroup` | Audit log; tell the administrators |
   | `RockSoftwareUsers.passwordSignInChanged` | `user`, `enabled` | Audit log |
   | `RockSoftwareUsers.sessionLimitsChanged` | `user`, `limits` | Audit log |
-  | `RockSoftwareUsers.userDeactivated`, `RockSoftwareUsers.userActivated`, `RockSoftwareUsers.sessionsEnded` | `user`, `actor` | Audit log |
+  | `RockSoftwareUsers.sessionsEnded` | `user`, `actor` | Audit log |
+  | `RockSoftwareUsers.accessGranted` | `user`, `actorUserId` | A person got access (again) |
+  | `RockSoftwareUsers.accessRevoked` | `user`, `revocation`, `actorUserId` | A person lost access, e.g. list their open work |
+  | `RockSoftwareUsers.alertRaised` | `alert`, `message`, `user`, `count` | Send it on with the application's mailer |
   | `RockSoftwareUsers.userListColumns` | `columns` (`ArrayObject`), `users` | Add columns to the users page: `['label' => …, 'value' => fn($user): string]` |
+  | `RockSoftwareUsers.userActions` | `actions` (`ArrayObject`) | A button per user on the list and the user's page: `['label' => …, 'url' => fn($user): string\|array\|null]`, e.g. *Manage permissions* |
   | `RockSoftwareUsers.userViewSections` | `sections` (`ArrayObject`), `user` | Add a section to a user's page: `['title' => …, 'element' => …, 'data' => [...]]`, rendered with the application's element and `$user` |
 
 - **Own second factor.** Skip it when `\RockSoftware\Users\Session\SignInSession::isProviderSession($session)`
   is true: the provider already required a second factor. A plugin password session is
   not one; an application with its own second factor keeps its own password form.
+
+### Moving to 3.0
+
+1. `composer require makallio85/rocksoftware-cakephp-users:^3.0`.
+2. Run the application's migrations **before** the plugin's (entrypoint and
+   `tests/bootstrap.php`).
+3. A column with another name than the plugin's (`full_name`, say) is the
+   application's to rename in its own migration; `userModel` and `fields` are gone.
+4. Listeners on `userDeactivated` / `userActivated` go: access changes in Rock
+   Software ID. Listen to `accessGranted` / `accessRevoked` instead.
+5. Profile pages show name, email and phone read-only: Rock Software ID owns them.
+6. Emergency links are written to a file, never printed (below).
+7. Deploy, press *Allow Rock Software ID to connect again*, then
+   `new-id-app.sh --update --rotate-secret` to deliver the SCIM token.
 
 ### Moving from cakephp-sso 1.x
 
@@ -218,22 +254,54 @@ if (!$this->fetchTable('RockSoftware/Users.Settings')->passwordSignInAllowed()) 
 }
 ```
 
+## People from Rock Software ID (SCIM)
+
+Rock Software ID's SCIM provider pushes the application's people and groups to
+`/auth/scim/v2` with a bearer token it delivered through `/auth/provision` (only its
+SHA-256 is kept; no token means every SCIM request is refused).
+
+- **Created in advance.** A person is pushed when they are added in Rock Software ID,
+  with `access_from` (their first day), so permissions can be set before they start.
+  Matched by `externalId` (= the OIDC `sub`), else by email to an unlinked row; the
+  SCIM `id` is `users.id`.
+- **Kept current.** Name, company email, phone (E.164) and the access dates
+  (`urn:rocksoftware:params:scim:schemas:extension:access:2.0:User`) come with every
+  push. An address another user already has is refused (409) and shown as *Email
+  conflict*.
+- **Revoked, never deleted.** `active: false`, `DELETE`, and leaving the last of the
+  application's groups (sent at once as a membership change) turn `is_active` off. A
+  later `active: true`, or coming back into a group after leaving, gives the same row
+  access again. `RockSoftwareUsers.systemUsers` are never touched.
+- **Mass-removal stop.** When the removals within 15 minutes reach half of the
+  application's users, they are held and an alert raised (`alertRaised`, and
+  `alertWebhookUrl`) until a person approves or rejects them on the users page or with
+  `bin/cake rock_software_users revocations [list|approve|reject]`. With one user, that
+  user's own removal always waits.
+- **The way back in.** `bin/cake rock_software_users restore_access <email>` gives one
+  person access back from the server when a mistake took it. The next push overrules it.
+
+Every change is in the access history (`rock_software_users_access_changes`, typed by
+`rock_software_users_access_change_types` and `rock_software_users_revocation_types`).
+
 ## Users page and sign-in history
 
-`/auth/users` lists the application's users with whether they are linked to Rock
-Software ID and when and how they last signed in, as cards at phone width. A user's page
-shows their sign-in history (successful and refused sign-ins, sign-outs, back-channel
-logouts, administrators' actions, with the client's IP address) and lets an
-administrator:
+`/auth/users` is read-only: people come from Rock Software ID and the application sets
+their permissions on its own pages. It lists name, email, phone, access (*Has access*,
+*Starts …*, *Ended …*, *Access removed*, *Email conflict*, *Not in Rock Software ID*)
+and the last sign-in, filtered by access (default: has access or starting), as cards at
+phone width. A user's page shows their details, the access history and the sign-in
+history (successful and refused sign-ins, sign-outs, back-channel logouts, with the
+client's IP address), and offers:
 
-- **Deactivate / activate** the user in this application (`is_active`). Deactivating
-  ends their sessions on their next request, and signing in, through the provider too,
-  is refused until they are activated again. Nobody deactivates themselves.
+- the application's buttons (`RockSoftwareUsers.userActions`), e.g. *Manage permissions*;
+- **Emergency sign-in link**: a single-use link for this person, shown once, for when
+  Rock Software ID is down; only for someone with access now;
 - **End sessions**: every session of the user in this application ends on its next
   request.
 
-Who may use the application at all is still decided in Rock Software ID; roles stay the
-application's, added to the page through `RockSoftwareUsers.userListColumns` and `RockSoftwareUsers.userViewSections`.
+Roles stay the application's, added to the page through
+`RockSoftwareUsers.userListColumns`, `RockSoftwareUsers.userViewSections` and
+`RockSoftwareUsers.userActions`.
 
 The history lives in `rock_software_users_session_events` (types in `rock_software_users_session_event_types` and
 `rock_software_users_sign_in_method_types`) and is kept for 180 days unless Settings › Identity provider
@@ -273,15 +341,19 @@ Nothing is listed after a password or emergency sign-in.
 When the provider is unavailable, someone with a shell in the application container runs:
 
 ```bash
-bin/cake rock_software_users emergency_sign_in person@example.com --minutes 15
+bin/cake rock_software_users emergency_sign_in person@example.com   # one person
+bin/cake rock_software_users emergency_sign_in --all                # everyone with access now
 ```
 
-and opens the printed link. It works once, expires, and is logged.
-
+**Links are never printed.** The command asks where to write them (or takes
+`--file <path>`), creates the file with mode 0600 and never overwrites one. Each link
+works once and expires after `--valid` (default `4h`, at most `24h`); issuing it is
+recorded in the person's access history. People without access get none. The users
+page makes one for one person too.
 
 `--create` also creates the user when no one has the address, for an empty
-development database such as a pull request preview, where AI agents sign in this
-way. It is refused when the application runs with `debug` off.
+development database such as a pull request preview. It is refused when the
+application runs with `debug` off.
 
 ## For automation
 
@@ -289,6 +361,8 @@ way. It is refused when the application runs with `debug` off.
 |---|---|
 | `GET /auth/client-metadata` | The addresses the identity provider must register (callback, sign-out return paths from `signInUrl`, back-channel logout, provisioning) and the plugin version. Public, answered before the application's authentication; `new-id-app.sh` reads it |
 | `bin/cake rock_software_users status` | The stored connection as JSON (configured, enabled, issuer, client ID, required group), never the secret |
+| `bin/cake rock_software_users restore_access <email>` | Give one person access back from the server |
+| `bin/cake rock_software_users revocations [list\|approve\|reject]` | The removals the mass-removal stop held |
 
 ## Development
 

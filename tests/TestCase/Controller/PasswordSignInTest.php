@@ -6,6 +6,7 @@ namespace RockSoftware\Users\Test\TestCase\Controller;
 use Authentication\PasswordHasher\DefaultPasswordHasher;
 use Cake\Core\Configure;
 use Cake\Datasource\EntityInterface;
+use Cake\I18n\DateTime;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
 use Cake\Utility\Hash;
@@ -123,7 +124,19 @@ class PasswordSignInTest extends TestCase
         $this->post('/auth/password', ['email' => 'person@example.test', 'password' => 'correct horse battery']);
 
         $this->assertSessionNotHasKey('Auth');
-        $this->assertFlashMessage('Your account has been deactivated in this application.');
+        $this->assertFlashMessage('You have no access to this application.');
+    }
+
+    public function testAPasswordDoesNotOpenAccessThatHasEnded(): void
+    {
+        $user = $this->createUser('person@example.test', 'correct horse battery');
+        $user->set('access_until', DateTime::now()->subDays(1));
+        $this->fetchTable('Users')->saveOrFail($user, ['validate' => false]);
+
+        $this->post('/auth/password', ['email' => 'person@example.test', 'password' => 'correct horse battery']);
+
+        $this->assertSessionNotHasKey('Auth');
+        $this->assertFlashMessage('Your access to this application has ended.');
     }
 
     public function testTooManyFailuresForOneAddressAreThrottled(): void
