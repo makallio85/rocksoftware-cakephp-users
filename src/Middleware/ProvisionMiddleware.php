@@ -29,6 +29,7 @@ class ProvisionMiddleware implements MiddlewareInterface
         if ($request->getUri()->getPath() !== UsersPlugin::PROVISION_PATH) {
             return $handler->handle($request);
         }
+        UsersPlugin::registerApplicationEvents();
         if (Provisioning::config() === null) {
             return (new Response())->withStatus(404);
         }
