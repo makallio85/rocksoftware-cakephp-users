@@ -18,6 +18,7 @@ use RockSoftware\Users\Middleware\BackchannelLogoutMiddleware;
 use RockSoftware\Users\Middleware\ClientMetadataMiddleware;
 use RockSoftware\Users\Middleware\ProvisionMiddleware;
 use RockSoftware\Users\Middleware\RequireSignInMiddleware;
+use RockSoftware\Users\Middleware\ScimMiddleware;
 use RockSoftware\Users\Middleware\SessionCheckMiddleware;
 use RockSoftware\Users\Service\AuthenticationServiceProvider;
 use RockSoftware\Users\UsersPlugin;
@@ -62,6 +63,7 @@ class UsersPluginTest extends TestCase
             BodyParserMiddleware::class,
             BackchannelLogoutMiddleware::class,
             ProvisionMiddleware::class,
+            ScimMiddleware::class,
             ClientMetadataMiddleware::class,
             CsrfProtectionMiddleware::class,
             AuthenticationMiddleware::class,
@@ -80,6 +82,7 @@ class UsersPluginTest extends TestCase
             BodyParserMiddleware::class,
             BackchannelLogoutMiddleware::class,
             ProvisionMiddleware::class,
+            ScimMiddleware::class,
             ClientMetadataMiddleware::class,
             CsrfProtectionMiddleware::class,
             AuthenticationMiddleware::class,
@@ -116,7 +119,8 @@ class UsersPluginTest extends TestCase
 
         $this->assertSame('/home', Configure::read('RockSoftwareUsers.signInRedirect'));
         $this->assertSame('/auth', Configure::read('RockSoftwareUsers.signInUrl'));
-        $this->assertSame('Users', Configure::read('RockSoftwareUsers.userModel'));
+        $this->assertSame([], Configure::read('RockSoftwareUsers.systemUsers'));
+        $this->assertSame('Europe/Helsinki', Configure::read('RockSoftwareUsers.timezone'));
     }
 
     /**

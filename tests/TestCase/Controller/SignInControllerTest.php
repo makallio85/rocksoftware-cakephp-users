@@ -286,6 +286,56 @@ class SignInControllerTest extends TestCase
         $this->assertSame('person@example.test', $this->userFor('subject-1')->email);
     }
 
+    public function testNobodySignsInBeforeTheirAccessStarts(): void
+    {
+        $users = $this->fetchTable('Users');
+        $user = $this->createLocalUser('person@example.test');
+        $identities = $this->fetchTable('RockSoftware/Users.Identities');
+        $identities->saveOrFail($identities->newEntity(
+            ['user_id' => $user->id, 'external_id' => 'subject-1'],
+            ['accessibleFields' => ['*' => true]],
+        ));
+
+        $user->set('access_from', DateTime::now()->addDays(2));
+        $users->saveOrFail($user, ['validate' => false]);
+        $this->completeSignIn([]);
+        $this->assertRedirect('/auth');
+        $this->assertFlashMessageContains('Your access to this application starts on');
+        $this->assertSessionNotHasKey('Auth');
+        $this->assertContains('access_not_started', $this->historyTypes());
+    }
+
+    public function testNobodySignsInAfterTheirAccessEnds(): void
+    {
+        $users = $this->fetchTable('Users');
+        $user = $this->createLocalUser('person@example.test');
+        $identities = $this->fetchTable('RockSoftware/Users.Identities');
+        $identities->saveOrFail($identities->newEntity(
+            ['user_id' => $user->id, 'external_id' => 'subject-1'],
+            ['accessibleFields' => ['*' => true]],
+        ));
+        $user->set('access_until', DateTime::now()->subMinutes(1));
+        $users->saveOrFail($user, ['validate' => false]);
+
+        $this->completeSignIn([]);
+
+        $this->assertRedirect('/auth');
+        $this->assertFlashMessage('Your access to this application has ended.');
+        $this->assertContains('access_ended', $this->historyTypes());
+    }
+
+    /**
+     * @return array<string>
+     */
+    private function historyTypes(): array
+    {
+        return $this->fetchTable('RockSoftware/Users.SessionEvents')->find()
+            ->contain(['SessionEventTypes'])
+            ->all()
+            ->map(fn($event) => $event->session_event_type->value)
+            ->toList();
+    }
+
     public function testAUserDeactivatedInTheApplicationStaysOut(): void
     {
         $users = $this->fetchTable('Users');
@@ -301,7 +351,7 @@ class SignInControllerTest extends TestCase
         $this->completeSignIn([]);
 
         $this->assertRedirect('/auth');
-        $this->assertFlashMessage('Your account has been deactivated in this application.');
+        $this->assertFlashMessage('You have no access to this application.');
         $this->assertFalse($users->get($user->id)->is_active, 'the provider does not reopen it');
         $types = $this->fetchTable('RockSoftware/Users.SessionEvents')->find()
             ->contain(['SessionEventTypes'])

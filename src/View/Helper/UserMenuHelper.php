@@ -44,7 +44,7 @@ class UserMenuHelper extends Helper
         }
         $session = $request->getSession();
 
-        $detail = [(string)$user->get(UserProvisioner::fields()['email'])];
+        $detail = [(string)$user->get(UserProvisioner::EMAIL)];
         $method = $session->read(SignInSession::METHOD);
         $establishedAt = $session->read(SignInSession::ESTABLISHED_AT);
         if (is_string($method) && SignInSession::isPluginSession($session) && is_int($establishedAt)) {
@@ -105,6 +105,29 @@ class UserMenuHelper extends Helper
      */
     private function accountUrl(): ?string
     {
+        $origin = $this->providerOrigin();
+
+        return $origin === null ? null : $origin . '/if/user/';
+    }
+
+    /**
+     * Rock Software ID's admin page for people, where their details and
+     * access dates are changed; null when the application is not connected.
+     *
+     * @return string|null
+     */
+    public function peopleAdminUrl(): ?string
+    {
+        $origin = $this->providerOrigin();
+
+        return $origin === null ? null : $origin . '/if/admin/#/identity/users';
+    }
+
+    /**
+     * @return string|null
+     */
+    private function providerOrigin(): ?string
+    {
         try {
             /** @var \RockSoftware\Users\Model\Table\SettingsTable $settings */
             $settings = $this->fetchTable('RockSoftware/Users.Settings');
@@ -117,6 +140,6 @@ class UserMenuHelper extends Helper
             return null;
         }
 
-        return 'https://' . $parts['host'] . (isset($parts['port']) ? ':' . $parts['port'] : '') . '/if/user/';
+        return 'https://' . $parts['host'] . (isset($parts['port']) ? ':' . $parts['port'] : '');
     }
 }

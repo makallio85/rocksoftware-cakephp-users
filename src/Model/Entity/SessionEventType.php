@@ -30,13 +30,21 @@ class SessionEventType extends Entity
     public const SESSIONS_ENDED = 'sessions_ended';
     public const USER_DEACTIVATED = 'user_deactivated';
     public const USER_ACTIVATED = 'user_activated';
+    public const ACCESS_NOT_STARTED = 'access_not_started';
+    public const ACCESS_ENDED = 'access_ended';
 
     /**
      * Refused password attempts, which the throttle counts.
      *
      * @var array<string>
      */
-    public const PASSWORD_FAILURES = [self::WRONG_PASSWORD, self::UNKNOWN_EMAIL, self::USER_INACTIVE];
+    public const PASSWORD_FAILURES = [
+        self::WRONG_PASSWORD,
+        self::UNKNOWN_EMAIL,
+        self::USER_INACTIVE,
+        self::ACCESS_NOT_STARTED,
+        self::ACCESS_ENDED,
+    ];
 
     /**
      * Every refused or failed sign-in.
@@ -47,6 +55,8 @@ class SessionEventType extends Entity
         self::WRONG_PASSWORD,
         self::UNKNOWN_EMAIL,
         self::USER_INACTIVE,
+        self::ACCESS_NOT_STARTED,
+        self::ACCESS_ENDED,
         self::NOT_IN_GROUP,
         self::THROTTLED,
         self::PASSWORD_SIGN_IN_OFF,
@@ -75,7 +85,9 @@ class SessionEventType extends Entity
             self::SIGNED_IN => __d('rock_software_users', 'Signed in'),
             self::WRONG_PASSWORD => __d('rock_software_users', 'Wrong password'),
             self::UNKNOWN_EMAIL => __d('rock_software_users', 'Unknown email address'),
-            self::USER_INACTIVE => __d('rock_software_users', 'Refused: user deactivated'),
+            self::USER_INACTIVE => __d('rock_software_users', 'Refused: no access'),
+            self::ACCESS_NOT_STARTED => __d('rock_software_users', 'Refused: access has not started'),
+            self::ACCESS_ENDED => __d('rock_software_users', 'Refused: access has ended'),
             self::NOT_IN_GROUP => __d('rock_software_users', 'Refused: not in the required group'),
             self::THROTTLED => __d('rock_software_users', 'Too many attempts'),
             self::PASSWORD_SIGN_IN_OFF => __d('rock_software_users', 'Refused: password sign-in is off'),

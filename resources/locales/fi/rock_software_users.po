@@ -417,3 +417,245 @@ msgstr "Ei vielä"
 
 msgid "Pages"
 msgstr "Sivut"
+
+msgid "Emergency sign-in links work only for people with access."
+msgstr "Hätäkirjautumislinkit toimivat vain henkilöille, joilla on käyttöoikeus."
+
+msgid "Has access or starting"
+msgstr "Käyttöoikeus tai alkamassa"
+
+msgid "Starting"
+msgstr "Alkamassa"
+
+msgid "No access"
+msgstr "Ei käyttöoikeutta"
+
+msgid "Needs attention"
+msgstr "Vaatii huomiota"
+
+msgid "Access removed for {0} people."
+msgstr "Käyttöoikeus poistettiin {0} henkilöltä."
+
+msgid "{0} people keep their access."
+msgstr "{0} henkilöä säilyttää käyttöoikeutensa."
+
+msgid "Your access to this application starts on {0}."
+msgstr "Käyttöoikeutesi tähän sovellukseen alkaa {0}."
+
+msgid "Your access to this application has not started yet."
+msgstr "Käyttöoikeutesi tähän sovellukseen ei ole vielä alkanut."
+
+msgid "Your access to this application has ended."
+msgstr "Käyttöoikeutesi tähän sovellukseen on päättynyt."
+
+msgid "You have no access to this application."
+msgstr "Sinulla ei ole käyttöoikeutta tähän sovellukseen."
+
+msgid "Refused: no access"
+msgstr "Estetty: ei käyttöoikeutta"
+
+msgid "Refused: access has not started"
+msgstr "Estetty: käyttöoikeus ei ole alkanut"
+
+msgid "Refused: access has ended"
+msgstr "Estetty: käyttöoikeus on päättynyt"
+
+msgid "Access granted"
+msgstr "Käyttöoikeus myönnetty"
+
+msgid "Access removed"
+msgstr "Käyttöoikeus poistettu"
+
+msgid "Details updated"
+msgstr "Tiedot päivitetty"
+
+msgid "Email conflict"
+msgstr "Sähköpostiosoite on varattu"
+
+msgid "Removing access held"
+msgstr "Käyttöoikeuden poisto pysäytetty"
+
+msgid "Held removal approved"
+msgstr "Pysäytetty poisto hyväksytty"
+
+msgid "Held removal rejected: access kept"
+msgstr "Pysäytetty poisto hylätty: käyttöoikeus säilyy"
+
+msgid "Access restored on the server"
+msgstr "Käyttöoikeus palautettu palvelimella"
+
+msgid "Emergency sign-in link issued"
+msgstr "Hätäkirjautumislinkki luotu"
+
+msgid "Deactivated in Rock Software ID"
+msgstr "Poistettu käytöstä Rock Software ID:ssä"
+
+msgid "Left the application's groups"
+msgstr "Poistui sovelluksen ryhmistä"
+
+msgid "Removed from the application in Rock Software ID"
+msgstr "Poistettu sovelluksesta Rock Software ID:ssä"
+
+msgid "Removal on hold"
+msgstr "Poisto pysäytetty"
+
+msgid "Waiting for your decision"
+msgstr "Odottaa päätöstäsi"
+
+msgid "New address {0} is another user's"
+msgstr "Uusi osoite {0} on toisen käyttäjän"
+
+msgid "Starts {0}"
+msgstr "Alkaa {0}"
+
+msgid "Ended {0}"
+msgstr "Päättyi {0}"
+
+msgid "Not in Rock Software ID"
+msgstr "Ei Rock Software ID:ssä"
+
+msgid "Not linked to an account"
+msgstr "Ei yhdistetty tunnukseen"
+
+msgid "Has access"
+msgstr "Käyttöoikeus voimassa"
+
+msgid "Until {0}"
+msgstr "{0} asti"
+
+msgid "Emergency sign-in link"
+msgstr "Hätäkirjautumislinkki"
+
+msgid "Emergency links work only for people with access, from {0}."
+msgstr "Hätäkirjautumislinkit toimivat vain henkilöille, joilla on käyttöoikeus, eli {0} alkaen."
+
+msgid "Emergency links work only for people with access."
+msgstr "Hätäkirjautumislinkit toimivat vain henkilöille, joilla on käyttöoikeus."
+
+msgid "Phone"
+msgstr "Puhelin"
+
+msgid "No phone"
+msgstr "Ei puhelinta"
+
+msgid "Access from"
+msgstr "Käyttöoikeus alkaa"
+
+msgid "No start date"
+msgstr "Ei alkamispäivää"
+
+msgid "Access until"
+msgstr "Käyttöoikeus päättyy"
+
+msgid "No end date"
+msgstr "Ei päättymispäivää"
+
+msgid "Linked {0}"
+msgstr "Yhdistetty {0}"
+
+msgid "Name, email, phone and access dates are kept in Rock Software ID."
+msgstr "Nimeä, sähköpostia, puhelinta ja käyttöoikeuden päiviä ylläpidetään Rock Software ID:ssä."
+
+msgid "Change them there"
+msgstr "Muuta niitä siellä"
+
+msgid "Access history"
+msgstr "Käyttöoikeushistoria"
+
+msgid "By"
+msgstr "Tekijä"
+
+msgid "Removing access is on hold"
+msgstr "Käyttöoikeuksien poisto on pysäytetty"
+
+msgid "No removal is on hold."
+msgstr "Yhtään poistoa ei ole pysäytetty."
+
+msgid "Asked at"
+msgstr "Pyydetty"
+
+msgid "Why"
+msgstr "Syy"
+
+msgid "It was a mistake"
+msgstr "Se oli virhe"
+
+msgid "Fix the group in Rock Software ID first. The removals are dropped and these people keep their access."
+msgstr "Korjaa ryhmä ensin Rock Software ID:ssä. Poistot perutaan ja nämä henkilöt säilyttävät käyttöoikeutensa."
+
+msgid "Keep their access"
+msgstr "Säilytä käyttöoikeudet"
+
+msgid "They really leave"
+msgstr "He todella lähtevät"
+
+msgid "Their access is removed now and they are signed out. Their rows and permissions stay, for history and a possible return."
+msgstr "Käyttöoikeus poistetaan nyt ja heidät kirjataan ulos. Heidän tietonsa ja oikeutensa säilyvät historiaa ja mahdollista paluuta varten."
+
+msgid "Remove their access"
+msgstr "Poista käyttöoikeudet"
+
+msgid "Remove access for everyone on this list?"
+msgstr "Poistetaanko käyttöoikeus kaikilta tämän listan henkilöiltä?"
+
+msgid "Emergency sign-in link for {0}"
+msgstr "Hätäkirjautumislinkki: {0}"
+
+msgid "For when Rock Software ID is down. The link signs {0} in to this application once, without Rock Software ID."
+msgstr "Kun Rock Software ID ei ole käytettävissä. Linkillä {0} kirjautuu tähän sovellukseen kerran ilman Rock Software ID:tä."
+
+msgid "Valid for"
+msgstr "Voimassa"
+
+msgid "Create link"
+msgstr "Luo linkki"
+
+msgid "Link"
+msgstr "Linkki"
+
+msgid "Shown only now. Valid until {0}, for one sign-in. Give it to {1} yourself, by phone or in person. Issuing it is recorded in the access history."
+msgstr "Näytetään vain nyt. Voimassa {0} asti, yhteen kirjautumiseen. Anna se itse henkilölle {1}, puhelimitse tai kasvotusten. Linkin luonti kirjataan käyttöoikeushistoriaan."
+
+msgid "Done"
+msgstr "Valmis"
+
+msgid "Rock Software ID asked to remove at least half of this application's users within 15 minutes. Until you decide, these people cannot start a new sign-in."
+msgstr "Rock Software ID pyysi poistamaan vähintään puolet tämän sovelluksen käyttäjistä 15 minuutin sisällä. Ennen kuin päätät, nämä henkilöt eivät voi kirjautua uudelleen."
+
+msgid "Review"
+msgstr "Tarkista"
+
+msgid "People come from Rock Software ID. Here you set what they may do in this application."
+msgstr "Henkilöt tulevat Rock Software ID:stä. Täällä määrität, mitä he saavat tehdä tässä sovelluksessa."
+
+msgid "Name, email or phone"
+msgstr "Nimi, sähköposti tai puhelin"
+
+msgid "Access"
+msgstr "Käyttöoikeus"
+
+msgid "Email · phone"
+msgstr "Sähköposti · puhelin"
+
+msgid "Actions"
+msgstr "Toiminnot"
+
+msgid "Removing access is on hold for {0} person"
+msgid_plural "Removing access is on hold for {0} people"
+msgstr[0] "Käyttöoikeuden poisto on pysäytetty {0} henkilöltä"
+msgstr[1] "Käyttöoikeuden poisto on pysäytetty {0} henkilöltä"
+
+msgid "Rock Software ID asked to remove access for {0} person while this application has {1} people with access. That is usually a mistake in a group, so the removal waits for you. Until you decide, nobody on this list can start a new sign-in."
+msgid_plural "Rock Software ID asked to remove access for {0} people while this application has {1} people with access. That is usually a mistake in a group, so these removals wait for you. Until you decide, nobody on this list can start a new sign-in."
+msgstr[0] "Rock Software ID pyysi poistamaan käyttöoikeuden {0} henkilöltä, kun tässä sovelluksessa on {1} käyttöoikeuden omaavaa henkilöä. Se on yleensä virhe jossakin ryhmässä, joten poisto odottaa päätöstäsi. Ennen kuin päätät, kukaan listalla ei voi kirjautua uudelleen."
+msgstr[1] "Rock Software ID pyysi poistamaan käyttöoikeuden {0} henkilöltä, kun tässä sovelluksessa on {1} käyttöoikeuden omaavaa henkilöä. Se on yleensä virhe jossakin ryhmässä, joten poistot odottavat päätöstäsi. Ennen kuin päätät, kukaan listalla ei voi kirjautua uudelleen."
+
+msgid "{0} hour"
+msgid_plural "{0} hours"
+msgstr[0] "{0} tunti"
+msgstr[1] "{0} tuntia"
+
+msgid "{0} minute"
+msgid_plural "{0} minutes"
+msgstr[0] "{0} minuutti"
+msgstr[1] "{0} minuuttia"
