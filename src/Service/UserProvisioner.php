@@ -87,7 +87,7 @@ class UserProvisioner
         $name = $claims['name'] ?? null;
         $values = [
             self::EMAIL => $email,
-            self::NAME => is_string($name) && $name !== '' ? $name : $email,
+            self::NAME => $this->fitName(is_string($name) && $name !== '' ? $name : $email),
         ];
         if ($isNew) {
             $values[self::IS_ACTIVE] = true;
@@ -250,6 +250,20 @@ class UserProvisioner
     public static function systemUserIds(): array
     {
         return array_values(array_map('intval', (array)Configure::read('RockSoftwareUsers.systemUsers', [])));
+    }
+
+    /**
+     * A name cut to the length of the application's `users.name`: a person's
+     * name must never stop them being saved.
+     *
+     * @param string $name The name.
+     * @return string
+     */
+    public function fitName(string $name): string
+    {
+        $length = $this->users()->getSchema()->getColumn(self::NAME)['length'] ?? null;
+
+        return is_int($length) && $length > 0 ? mb_substr($name, 0, $length) : $name;
     }
 
     /**
