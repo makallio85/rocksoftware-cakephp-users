@@ -12,7 +12,7 @@ use Throwable;
 /**
  * What the identity provider must register for this application, as paths
  * relative to the application's own address: where sign-in returns, where
- * signing out returns, the back-channel logout and provisioning endpoints.
+ * signing out returns, the back-channel logout, provisioning and SCIM endpoints.
  */
 final class ClientMetadata
 {
@@ -35,6 +35,7 @@ final class ClientMetadata
             'post_logout_redirect_uris' => $logout,
             'backchannel_logout_uri' => UsersPlugin::BACKCHANNEL_LOGOUT_PATH,
             'provision_uri' => Provisioning::config() === null ? null : UsersPlugin::PROVISION_PATH,
+            'scim_uri' => UsersPlugin::SCIM_PATH,
             'password_sign_in' => Configure::read('RockSoftwareUsers.passwordSignIn') === true,
             'plugin_version' => $version,
             'sign_in_paths' => RequireSignInMiddleware::SIGN_IN_PATHS,

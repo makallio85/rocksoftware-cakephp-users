@@ -18,6 +18,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 use RockSoftware\Users\Model\Entity\SessionEventType;
 use RockSoftware\Users\Service\PasswordSignIn;
 use RockSoftware\Users\Service\SignInHistory;
+use RockSoftware\Users\Service\UserAccess;
 use RockSoftware\Users\Service\UserProvisioner;
 use RockSoftware\Users\Session\SignInSession;
 use Throwable;
@@ -197,7 +198,7 @@ class SessionCheckMiddleware implements MiddlewareInterface
             return true;
         }
 
-        if (!UserProvisioner::isActive($user)) {
+        if (!UserAccess::allows($user)) {
             return true;
         }
         $establishedAt = $request->getSession()->read(SignInSession::ESTABLISHED_AT);

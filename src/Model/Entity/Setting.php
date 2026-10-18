@@ -24,6 +24,7 @@ use Cake\ORM\Entity;
  * @property int $session_max_hours
  * @property int $session_idle_minutes
  * @property int $session_event_retention_days
+ * @property string|null $scim_token_hash SHA-256 of the SCIM token Rock Software ID pushes with.
  * @property \Cake\I18n\DateTime $created
  * @property \Cake\I18n\DateTime $modified
  */
@@ -45,10 +46,11 @@ class Setting extends Entity
         'session_max_hours' => true,
         'session_idle_minutes' => true,
         'session_event_retention_days' => true,
+        'scim_token_hash' => true,
     ];
 
     /**
      * @var array<string>
      */
-    protected array $_hidden = ['client_secret'];
+    protected array $_hidden = ['client_secret', 'scim_token_hash'];
 }

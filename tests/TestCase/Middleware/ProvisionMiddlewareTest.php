@@ -79,6 +79,26 @@ class ProvisionMiddlewareTest extends TestCase
         $this->assertSame(FakeProvider::CLIENT_ID, $events[0]['clientId']);
     }
 
+    public function testStoresOnlyTheHashOfTheScimToken(): void
+    {
+        $token = str_repeat('Ab3', 21) . 'x';
+
+        $this->provision($this->provider->provisioningToken(), ['scim_token' => $token]);
+
+        $this->assertResponseCode(204);
+        $setting = $this->fetchTable('RockSoftware/Users.Settings')->enabled();
+        $this->assertSame(hash('sha256', $token), $setting->scim_token_hash);
+        $this->assertStringNotContainsString($token, (string)json_encode($setting->toArray()));
+    }
+
+    public function testRefusesAMalformedScimToken(): void
+    {
+        $this->provision($this->provider->provisioningToken(), ['scim_token' => 'short']);
+
+        $this->assertResponseCode(400);
+        $this->assertNull($this->fetchTable('RockSoftware/Users.Settings')->enabled());
+    }
+
     public function testReplacesAnExistingConnectionInsideAnOpenedWindow(): void
     {
         $settings = $this->fetchTable('RockSoftware/Users.Settings');
