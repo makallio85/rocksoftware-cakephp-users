@@ -120,7 +120,8 @@ class UsersPluginTest extends TestCase
         $this->assertSame('/home', Configure::read('RockSoftwareUsers.signInRedirect'));
         $this->assertSame('/auth', Configure::read('RockSoftwareUsers.signInUrl'));
         $this->assertSame([], Configure::read('RockSoftwareUsers.systemUsers'));
-        $this->assertSame('Europe/Helsinki', Configure::read('RockSoftwareUsers.timezone'));
+        $this->assertNull(Configure::read('RockSoftwareUsers.timezone'), 'follows the application');
+        $this->assertNull(Configure::read('RockSoftwareUsers.layout'), 'picked by signInLayout()');
     }
 
     /**
@@ -138,6 +139,31 @@ class UsersPluginTest extends TestCase
      * @param \Cake\Http\MiddlewareQueue $queue The queue.
      * @return list<string>
      */
+    public function testTheDisplayTimezoneFollowsTheApplication(): void
+    {
+        try {
+            Configure::delete('Ui');
+            Configure::delete('App.displayTimezone');
+            $this->assertSame('Europe/Helsinki', UsersPlugin::displayTimezone());
+
+            Configure::write('App.displayTimezone', 'America/New_York');
+            $this->assertSame('America/New_York', UsersPlugin::displayTimezone());
+
+            Configure::write('Ui.displayTimezone', 'Asia/Tokyo');
+            $this->assertSame('Asia/Tokyo', UsersPlugin::displayTimezone());
+
+            Configure::write('RockSoftwareUsers.timezone', 'UTC');
+            $this->assertSame('UTC', UsersPlugin::displayTimezone(), 'the plugin\'s own setting, when set, wins');
+
+            Configure::write('RockSoftwareUsers.timezone', 'Not/AZone');
+            $this->assertSame('Asia/Tokyo', UsersPlugin::displayTimezone(), 'a zone PHP does not know is skipped');
+        } finally {
+            Configure::delete('Ui');
+            Configure::delete('App.displayTimezone');
+            Configure::write('RockSoftwareUsers.timezone', null);
+        }
+    }
+
     private function classes(MiddlewareQueue $queue): array
     {
         $classes = [];

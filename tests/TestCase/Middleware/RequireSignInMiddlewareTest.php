@@ -58,7 +58,7 @@ class RequireSignInMiddlewareTest extends TestCase
     {
         $this->get('/auth');
 
-        $this->assertResponseContains('<p class="rsu-app">Test App</p>');
-        $this->assertResponseContains('<main class="rsu-card">');
+        $this->assertResponseContains('<h1 class="h5 mb-0">Test App</h1>');
+        $this->assertResponseContains('<div class="auth-card">');
     }
 }

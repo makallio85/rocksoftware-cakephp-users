@@ -10,6 +10,7 @@ use Cake\View\Helper;
 use RockSoftware\Users\Model\Entity\SignInMethodType;
 use RockSoftware\Users\Service\UserProvisioner;
 use RockSoftware\Users\Session\SignInSession;
+use RockSoftware\Users\UsersPlugin;
 use Throwable;
 
 /**
@@ -52,7 +53,9 @@ class UserMenuHelper extends Helper
                 'rock_software_users',
                 'Signed in with {0} at {1}',
                 SignInMethodType::label($method),
-                DateTime::createFromTimestamp($establishedAt)->i18nFormat('HH.mm'),
+                DateTime::createFromTimestamp($establishedAt)
+                    ->setTimezone(UsersPlugin::displayTimezone())
+                    ->i18nFormat('HH.mm'),
             );
         }
         $items = [[
