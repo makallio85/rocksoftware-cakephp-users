@@ -1,0 +1,679 @@
+# Finnish translations for makallio85/rocksoftware-cakephp-users.
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: fi\n"
+
+msgid "Client ID"
+msgstr "Asiakastunnus (Client ID)"
+
+msgid "Client secret"
+msgstr "Asiakassalaisuus (Client secret)"
+
+msgid "Connected."
+msgstr "Yhteys toimii."
+
+msgid "Emergency sign-in"
+msgstr "Hätäkirjautuminen"
+
+msgid "Enter the client ID."
+msgstr "Anna asiakastunnus."
+
+msgid "Enter the client secret: none is stored yet."
+msgstr "Anna asiakassalaisuus: sitä ei ole vielä tallennettu."
+
+msgid "Identity provider"
+msgstr "Tunnistuspalvelu"
+
+msgid "Identity server address"
+msgstr "Tunnistuspalvelun osoite"
+
+msgid "Last changed by {0}, {1}."
+msgstr "Viimeksi muuttanut {0}, {1}."
+
+msgid "Connected by Rock Software ID, {0}."
+msgstr "Yhdistetty Rock Software ID:stä, {0}."
+
+msgid "Not configured yet. Enter the connection below; it is saved once the server answers."
+msgstr "Ei vielä määritetty. Anna yhteystiedot alla; ne tallennetaan, kun palvelin vastaa."
+
+msgid "Not saved. {0} The previous settings are still in use."
+msgstr "Ei tallennettu. {0} Aiemmat asetukset ovat yhä käytössä."
+
+msgid "People sign in through Rock Software ID. These settings say which server and which client."
+msgstr "Kirjautuminen tapahtuu Rock Software ID:llä. Nämä asetukset kertovat, mikä palvelin ja mikä asiakas."
+
+msgid "Redirect URI to register at the provider"
+msgstr "Paluuosoite, joka rekisteröidään tunnistuspalveluun"
+
+msgid "Required"
+msgstr "Pakollinen"
+
+msgid "Required group"
+msgstr "Pääsyn antava ryhmä"
+
+msgid "Save"
+msgstr "Tallenna"
+
+msgid "Save checks the server first. Settings that cannot reach it are not saved, so nobody is locked out."
+msgstr "Tallennus tarkistaa ensin palvelimen. Asetuksia, joilla palvelinta ei tavoiteta, ei tallenneta, joten kukaan ei jää ulos."
+
+msgid "Saved. Sign-in now uses this identity server."
+msgstr "Tallennettu. Kirjautuminen käyttää nyt tätä tunnistuspalvelua."
+
+msgid "Sign in"
+msgstr "Kirjaudu"
+
+msgid "Sign in with Rock Software ID"
+msgstr "Kirjaudu Rock Software ID:llä"
+
+msgid "Sign-in is not configured yet. Connect this deployment to Rock Software ID with {0} in the application container."
+msgstr "Kirjautumista ei ole vielä määritetty. Yhdistä tämä asennus Rock Software ID:hen komennolla {0} sovelluksen kontissa."
+
+msgid "Sign-in through Rock Software ID failed. Try again, or contact the administrator."
+msgstr "Kirjautuminen Rock Software ID:llä epäonnistui. Yritä uudelleen tai ota yhteyttä pääkäyttäjään."
+
+msgid "Sign-in through Rock Software ID is not available."
+msgstr "Kirjautuminen Rock Software ID:llä ei ole käytettävissä."
+
+msgid "Stored encrypted and never shown. In Authentik: Applications › Providers › the provider › Edit."
+msgstr "Tallennetaan salattuna eikä näytetä koskaan. Authentikissa: Applications › Providers › palveluntarjoaja › Edit."
+
+msgid "Stored — leave blank to keep it"
+msgstr "Tallennettu — jätä tyhjäksi, niin se säilyy"
+
+msgid "Test connection"
+msgstr "Testaa yhteys"
+
+msgid "The identity server address must be an https URL."
+msgstr "Tunnistuspalvelun osoitteen pitää olla https-osoite."
+
+msgid "The identity server answered. Nothing was saved."
+msgstr "Tunnistuspalvelu vastasi. Mitään ei tallennettu."
+
+msgid "The identity server could not be asked: {0}"
+msgstr "Tunnistuspalvelulta ei voitu kysyä: {0}"
+
+msgid "The identity server did not answer: {0}"
+msgstr "Tunnistuspalvelu ei vastannut: {0}"
+
+msgid "The issuer URL: https://id.rocksoftware.fi/application/o/ followed by the application's slug."
+msgstr "Issuer-osoite: https://id.rocksoftware.fi/application/o/ ja perään sovelluksen tunnus (slug)."
+
+msgid "The server answers its discovery document."
+msgstr "Palvelin vastaa discovery-kyselyyn."
+
+msgid "The stored server does not answer."
+msgstr "Tallennettu palvelin ei vastaa."
+
+msgid "This address did not answer as an identity server. Check that the path ends in the application's slug."
+msgstr "Osoite ei vastannut tunnistuspalveluna. Tarkista, että polku päättyy sovelluksen tunnukseen."
+
+msgid "This link signs you in once, without Rock Software ID. Use it only when Rock Software ID is unavailable."
+msgstr "Tällä linkillä kirjaudut kerran ilman Rock Software ID:tä. Käytä sitä vain, kun Rock Software ID ei ole käytettävissä."
+
+msgid "This sign-in link is invalid, expired or already used."
+msgstr "Kirjautumislinkki on virheellinen, vanhentunut tai jo käytetty."
+
+msgid "You may not change the identity provider settings."
+msgstr "Sinulla ei ole oikeutta muuttaa tunnistuspalvelun asetuksia."
+
+msgid "Your account has no access to this application."
+msgstr "Tunnuksellasi ei ole pääsyä tähän sovellukseen."
+
+msgid "Your session has ended. Please sign in again."
+msgstr "Istuntosi on päättynyt. Kirjaudu uudelleen."
+
+msgid "a removed user"
+msgstr "poistettu käyttäjä"
+
+msgid "Rock Software ID may connect this application during the next hour."
+msgstr "Rock Software ID voi yhdistää tämän sovelluksen seuraavan tunnin aikana."
+
+msgid "Connection by Rock Software ID"
+msgstr "Yhdistäminen Rock Software ID:stä"
+
+msgid "Waiting. Rock Software ID connects this application when its administrator runs the identity provider's registration step; nothing needs to be typed here."
+msgstr "Odottaa. Rock Software ID yhdistää tämän sovelluksen, kun sen ylläpitäjä ajaa identiteettipalvelun rekisteröintivaiheen; tähän ei tarvitse kirjoittaa mitään."
+
+msgid "Open until {0}. Run the identity provider's registration step now; the connection it sends closes this again."
+msgstr "Avoinna klo {0} asti. Aja identiteettipalvelun rekisteröintivaihe nyt; sen lähettämä yhteys sulkee tämän taas."
+
+msgid "Closed. Rock Software ID cannot change this connection. Open it for an hour to set a new client secret or client; the next connection closes it again."
+msgstr "Suljettu. Rock Software ID ei voi muuttaa tätä yhteyttä. Avaa se tunniksi, kun asiakassalaisuus tai asiakas vaihdetaan; seuraava yhdistäminen sulkee sen taas."
+
+msgid "Allow Rock Software ID to connect again"
+msgstr "Salli Rock Software ID:n yhdistää uudelleen"
+
+msgid "Password sign-in"
+msgstr "Kirjautuminen salasanalla"
+
+msgid "Off. Only Rock Software ID signs people in. Turning it back on lets everyone use their password again at once."
+msgstr "Pois päältä. Vain Rock Software ID kirjaa ihmiset sisään. Kun sen kytkee takaisin päälle, kaikki voivat heti taas käyttää salasanaansa."
+
+msgid "On. People can also sign in with their email address and password on the sign-in page. Turn it off once everyone has signed in through Rock Software ID once."
+msgstr "Päällä. Kirjautumissivulla voi kirjautua myös sähköpostilla ja salasanalla. Kytke se pois, kun jokainen on kirjautunut kerran Rock Software ID:llä."
+
+msgid "On. To turn it off, sign in through Rock Software ID first, so nobody can lock themselves out."
+msgstr "Päällä. Kirjaudu ensin Rock Software ID:llä, jotta voit kytkeä sen pois – näin kukaan ei lukitse itseään ulos."
+
+msgid "Turn password sign-in off"
+msgstr "Kytke salasanakirjautuminen pois"
+
+msgid "Turn password sign-in on"
+msgstr "Kytke salasanakirjautuminen päälle"
+
+msgid "Password sign-in turned on by {0}, {1}."
+msgstr "Salasanakirjautumisen kytki päälle {0}, {1}."
+
+msgid "Password sign-in turned off by {0}, {1}."
+msgstr "Salasanakirjautumisen kytki pois {0}, {1}."
+
+msgid "Password sign-in stays on. Sign in through Rock Software ID first, so nobody can lock themselves out."
+msgstr "Salasanakirjautuminen jää päälle. Kirjaudu ensin Rock Software ID:llä, jotta kukaan ei lukitse itseään ulos."
+
+msgid "Password sign-in stays on: the identity server does not answer. {0}"
+msgstr "Salasanakirjautuminen jää päälle: tunnistuspalvelin ei vastaa. {0}"
+
+msgid "Password sign-in is on. People can sign in with their password again."
+msgstr "Salasanakirjautuminen on päällä. Ihmiset voivat taas kirjautua salasanallaan."
+
+msgid "Password sign-in is off. Only Rock Software ID signs people in."
+msgstr "Salasanakirjautuminen on pois päältä. Vain Rock Software ID kirjaa ihmiset sisään."
+
+msgid "Password sign-in has been turned off. Please sign in with Rock Software ID."
+msgstr "Salasanakirjautuminen on kytketty pois. Kirjaudu Rock Software ID:llä."
+
+msgid "Not available. This application has no passwords of its own; people sign in only through Rock Software ID."
+msgstr "Ei käytettävissä. Sovelluksella ei ole omia salasanoja; kirjautuminen tapahtuu vain Rock Software ID:llä."
+
+msgid "Your session has expired. Please sign in again."
+msgstr "Istuntosi on vanhentunut. Kirjaudu uudelleen."
+
+msgid "Password sign-in is off. Sign in with Rock Software ID."
+msgstr "Salasanakirjautuminen on pois päältä. Kirjaudu Rock Software ID:llä."
+
+msgid "Your account has been deactivated in this application."
+msgstr "Käyttäjätunnuksesi on suljettu tässä sovelluksessa."
+
+msgid "The email address or password is wrong."
+msgstr "Sähköpostiosoite tai salasana on väärin."
+
+msgid "Too many failed sign-ins. Try again in {0} minutes, or sign in with Rock Software ID."
+msgstr "Liian monta epäonnistunutta kirjautumista. Yritä uudelleen {0} minuutin kuluttua, tai kirjaudu Rock Software ID:llä."
+
+msgid "You may not manage users."
+msgstr "Sinulla ei ole oikeutta hallita käyttäjiä."
+
+msgid "{0} is signed out of this application."
+msgstr "{0} on kirjattu ulos tästä sovelluksesta."
+
+msgid "You cannot deactivate yourself."
+msgstr "Et voi sulkea omaa tunnustasi."
+
+msgid "{0} can sign in again."
+msgstr "{0} voi taas kirjautua."
+
+msgid "{0} is deactivated and signed out of this application."
+msgstr "{0} on suljettu ja kirjattu ulos tästä sovelluksesta."
+
+msgid "Session settings saved."
+msgstr "Istuntoasetukset tallennettu."
+
+msgid "Rock Software ID"
+msgstr "Rock Software ID"
+
+msgid "Password"
+msgstr "Salasana"
+
+msgid "Emergency link"
+msgstr "Varakirjautuminen"
+
+msgid "Signed in"
+msgstr "Kirjautui"
+
+msgid "Wrong password"
+msgstr "Väärä salasana"
+
+msgid "Unknown email address"
+msgstr "Tuntematon sähköpostiosoite"
+
+msgid "Refused: user deactivated"
+msgstr "Hylätty: tunnus suljettu"
+
+msgid "Refused: not in the required group"
+msgstr "Hylätty: ei vaaditussa ryhmässä"
+
+msgid "Too many attempts"
+msgstr "Liian monta yritystä"
+
+msgid "Refused: password sign-in is off"
+msgstr "Hylätty: salasanakirjautuminen pois päältä"
+
+msgid "Sign-in failed"
+msgstr "Kirjautuminen epäonnistui"
+
+msgid "Signed out"
+msgstr "Kirjautui ulos"
+
+msgid "Signed out by Rock Software ID"
+msgstr "Rock Software ID kirjasi ulos"
+
+msgid "Session expired"
+msgstr "Istunto vanheni"
+
+msgid "Sessions ended by {0}"
+msgstr "{0} päätti istunnot"
+
+msgid "Deactivated by {0}"
+msgstr "{0} sulki tunnuksen"
+
+msgid "Activated by {0}"
+msgstr "{0} avasi tunnuksen"
+
+msgid "Signed in with {0} at {1}"
+msgstr "Kirjautunut: {0} klo {1}"
+
+msgid "Your Rock Software ID account"
+msgstr "Oma Rock Software ID -tili"
+
+msgid "Sign out"
+msgstr "Kirjaudu ulos"
+
+msgid "or with your email address and password"
+msgstr "tai sähköpostilla ja salasanalla"
+
+msgid "Email address"
+msgstr "Sähköposti"
+
+msgid "Forgot your password? Ask an administrator to set a new one, or sign in with Rock Software ID."
+msgstr "Unohtuiko salasana? Pyydä ylläpitäjää asettamaan uusi, tai kirjaudu Rock Software ID:llä."
+
+msgid "Forgot your password? Ask an administrator to set a new one."
+msgstr "Unohtuiko salasana? Pyydä ylläpitäjää asettamaan uusi."
+
+msgid "Menu of {0}"
+msgstr "Käyttäjän {0} valikko"
+
+msgid "Applications"
+msgstr "Sovellukset"
+
+msgid "this one"
+msgstr "tämä"
+
+msgid "Sessions"
+msgstr "Istunnot"
+
+msgid "Longest session"
+msgstr "Istunnon enimmäiskesto"
+
+msgid "hours"
+msgstr "tuntia"
+
+msgid "Then people sign in again. 0 = no limit."
+msgstr "Tämän jälkeen kirjaudutaan uudelleen. 0 = ei rajaa."
+
+msgid "Sign out when idle"
+msgstr "Uloskirjaus käyttämättömänä"
+
+msgid "minutes"
+msgstr "minuuttia"
+
+msgid "0 = never."
+msgstr "0 = ei koskaan."
+
+msgid "Keep sign-in history"
+msgstr "Kirjautumishistorian säilytys"
+
+msgid "days"
+msgstr "päivää"
+
+msgid "Users"
+msgstr "Käyttäjät"
+
+msgid "End sessions"
+msgstr "Päätä istunnot"
+
+msgid "Deactivate"
+msgstr "Sulje tunnus"
+
+msgid "Deactivate {0}? They are signed out of this application and cannot sign in until activated again."
+msgstr "Suljetaanko käyttäjän {0} tunnus? Hänet kirjataan ulos tästä sovelluksesta, eikä hän voi kirjautua ennen kuin tunnus avataan."
+
+msgid "Activate"
+msgstr "Avaa tunnus"
+
+msgid "Details"
+msgstr "Tiedot"
+
+msgid "Status"
+msgstr "Tila"
+
+msgid "Active"
+msgstr "Aktiivinen"
+
+msgid "Deactivated"
+msgstr "Suljettu"
+
+msgid "Not yet linked; linked on their first sign-in"
+msgstr "Ei vielä liitetty; liittyy ensimmäisellä kirjautumisella"
+
+msgid "Linked"
+msgstr "Liitetty"
+
+msgid "Last signed in"
+msgstr "Viimeksi kirjautunut"
+
+msgid "Never"
+msgstr "Ei koskaan"
+
+msgid "Created"
+msgstr "Luotu"
+
+msgid "Sign-in history"
+msgstr "Kirjautumishistoria"
+
+msgid "Kept for {0} days"
+msgstr "Säilytetään {0} päivää"
+
+msgid "Nothing yet."
+msgstr "Ei vielä mitään."
+
+msgid "Time"
+msgstr "Aika"
+
+msgid "Method"
+msgstr "Tapa"
+
+msgid "Event"
+msgstr "Merkintä"
+
+msgid "IP address"
+msgstr "IP-osoite"
+
+msgid "Access to the application and new users are granted in Rock Software ID."
+msgstr "Pääsy sovellukseen ja uudet käyttäjät hoidetaan Rock Software ID:ssä."
+
+msgid "Search"
+msgstr "Haku"
+
+msgid "Name or email address"
+msgstr "Nimi tai sähköposti"
+
+msgid "All"
+msgstr "Kaikki"
+
+msgid "Filter"
+msgstr "Suodata"
+
+msgid "No users match."
+msgstr "Ei käyttäjiä hakuehdoilla."
+
+msgid "Name"
+msgstr "Nimi"
+
+msgid "Not yet"
+msgstr "Ei vielä"
+
+msgid "Pages"
+msgstr "Sivut"
+
+msgid "Emergency sign-in links work only for people with access."
+msgstr "Hätäkirjautumislinkit toimivat vain henkilöille, joilla on käyttöoikeus."
+
+msgid "Has access or starting"
+msgstr "Käyttöoikeus tai alkamassa"
+
+msgid "Starting"
+msgstr "Alkamassa"
+
+msgid "No access"
+msgstr "Ei käyttöoikeutta"
+
+msgid "Needs attention"
+msgstr "Vaatii huomiota"
+
+msgid "Access removed for {0} people."
+msgstr "Käyttöoikeus poistettiin {0} henkilöltä."
+
+msgid "{0} people keep their access."
+msgstr "{0} henkilöä säilyttää käyttöoikeutensa."
+
+msgid "Your access to this application starts on {0}."
+msgstr "Käyttöoikeutesi tähän sovellukseen alkaa {0}."
+
+msgid "Your access to this application has not started yet."
+msgstr "Käyttöoikeutesi tähän sovellukseen ei ole vielä alkanut."
+
+msgid "Your access to this application has ended."
+msgstr "Käyttöoikeutesi tähän sovellukseen on päättynyt."
+
+msgid "You have no access to this application."
+msgstr "Sinulla ei ole käyttöoikeutta tähän sovellukseen."
+
+msgid "Refused: no access"
+msgstr "Estetty: ei käyttöoikeutta"
+
+msgid "Refused: access has not started"
+msgstr "Estetty: käyttöoikeus ei ole alkanut"
+
+msgid "Refused: access has ended"
+msgstr "Estetty: käyttöoikeus on päättynyt"
+
+msgid "Access granted"
+msgstr "Käyttöoikeus myönnetty"
+
+msgid "Access removed"
+msgstr "Käyttöoikeus poistettu"
+
+msgid "Details updated"
+msgstr "Tiedot päivitetty"
+
+msgid "Email conflict"
+msgstr "Sähköpostiosoite on varattu"
+
+msgid "Removing access held"
+msgstr "Käyttöoikeuden poisto pysäytetty"
+
+msgid "Held removal approved"
+msgstr "Pysäytetty poisto hyväksytty"
+
+msgid "Held removal rejected: access kept"
+msgstr "Pysäytetty poisto hylätty: käyttöoikeus säilyy"
+
+msgid "Access restored on the server"
+msgstr "Käyttöoikeus palautettu palvelimella"
+
+msgid "Emergency sign-in link issued"
+msgstr "Hätäkirjautumislinkki luotu"
+
+msgid "Deactivated in Rock Software ID"
+msgstr "Poistettu käytöstä Rock Software ID:ssä"
+
+msgid "Left the application's groups"
+msgstr "Poistui sovelluksen ryhmistä"
+
+msgid "Removed from the application in Rock Software ID"
+msgstr "Poistettu sovelluksesta Rock Software ID:ssä"
+
+msgid "Removal on hold"
+msgstr "Poisto pysäytetty"
+
+msgid "Waiting for your decision"
+msgstr "Odottaa päätöstäsi"
+
+msgid "New address {0} is another user's"
+msgstr "Uusi osoite {0} on toisen käyttäjän"
+
+msgid "Starts {0}"
+msgstr "Alkaa {0}"
+
+msgid "Ended {0}"
+msgstr "Päättyi {0}"
+
+msgid "Not in Rock Software ID"
+msgstr "Ei Rock Software ID:ssä"
+
+msgid "Not linked to an account"
+msgstr "Ei yhdistetty tunnukseen"
+
+msgid "Has access"
+msgstr "Käyttöoikeus voimassa"
+
+msgid "Until {0}"
+msgstr "{0} asti"
+
+msgid "Emergency sign-in link"
+msgstr "Hätäkirjautumislinkki"
+
+msgid "Emergency links work only for people with access, from {0}."
+msgstr "Hätäkirjautumislinkit toimivat vain henkilöille, joilla on käyttöoikeus, eli {0} alkaen."
+
+msgid "Emergency links work only for people with access."
+msgstr "Hätäkirjautumislinkit toimivat vain henkilöille, joilla on käyttöoikeus."
+
+msgid "Phone"
+msgstr "Puhelin"
+
+msgid "No phone"
+msgstr "Ei puhelinta"
+
+msgid "Access from"
+msgstr "Käyttöoikeus alkaa"
+
+msgid "No start date"
+msgstr "Ei alkamispäivää"
+
+msgid "Access until"
+msgstr "Käyttöoikeus päättyy"
+
+msgid "No end date"
+msgstr "Ei päättymispäivää"
+
+msgid "Linked {0}"
+msgstr "Yhdistetty {0}"
+
+msgid "Name, email, phone and access dates are kept in Rock Software ID."
+msgstr "Nimeä, sähköpostia, puhelinta ja käyttöoikeuden päiviä ylläpidetään Rock Software ID:ssä."
+
+msgid "Change them there"
+msgstr "Muuta niitä siellä"
+
+msgid "Access history"
+msgstr "Käyttöoikeushistoria"
+
+msgid "By"
+msgstr "Tekijä"
+
+msgid "Removing access is on hold"
+msgstr "Käyttöoikeuksien poisto on pysäytetty"
+
+msgid "No removal is on hold."
+msgstr "Yhtään poistoa ei ole pysäytetty."
+
+msgid "Asked at"
+msgstr "Pyydetty"
+
+msgid "Why"
+msgstr "Syy"
+
+msgid "It was a mistake"
+msgstr "Se oli virhe"
+
+msgid "Fix the group in Rock Software ID first. The removals are dropped and these people keep their access."
+msgstr "Korjaa ryhmä ensin Rock Software ID:ssä. Poistot perutaan ja nämä henkilöt säilyttävät käyttöoikeutensa."
+
+msgid "Keep their access"
+msgstr "Säilytä käyttöoikeudet"
+
+msgid "They really leave"
+msgstr "He todella lähtevät"
+
+msgid "Their access is removed now and they are signed out. Their rows and permissions stay, for history and a possible return."
+msgstr "Käyttöoikeus poistetaan nyt ja heidät kirjataan ulos. Heidän tietonsa ja oikeutensa säilyvät historiaa ja mahdollista paluuta varten."
+
+msgid "Remove their access"
+msgstr "Poista käyttöoikeudet"
+
+msgid "Remove access for everyone on this list?"
+msgstr "Poistetaanko käyttöoikeus kaikilta tämän listan henkilöiltä?"
+
+msgid "Emergency sign-in link for {0}"
+msgstr "Hätäkirjautumislinkki: {0}"
+
+msgid "For when Rock Software ID is down. The link signs {0} in to this application once, without Rock Software ID."
+msgstr "Kun Rock Software ID ei ole käytettävissä. Linkillä {0} kirjautuu tähän sovellukseen kerran ilman Rock Software ID:tä."
+
+msgid "Valid for"
+msgstr "Voimassa"
+
+msgid "Create link"
+msgstr "Luo linkki"
+
+msgid "Link"
+msgstr "Linkki"
+
+msgid "Shown only now. Valid until {0}, for one sign-in. Give it to {1} yourself, by phone or in person. Issuing it is recorded in the access history."
+msgstr "Näytetään vain nyt. Voimassa {0} asti, yhteen kirjautumiseen. Anna se itse henkilölle {1}, puhelimitse tai kasvotusten. Linkin luonti kirjataan käyttöoikeushistoriaan."
+
+msgid "Done"
+msgstr "Valmis"
+
+msgid "Rock Software ID asked to remove at least half of this application's users within 15 minutes. Until you decide, these people cannot start a new sign-in."
+msgstr "Rock Software ID pyysi poistamaan vähintään puolet tämän sovelluksen käyttäjistä 15 minuutin sisällä. Ennen kuin päätät, nämä henkilöt eivät voi kirjautua uudelleen."
+
+msgid "Review"
+msgstr "Tarkista"
+
+msgid "People come from Rock Software ID. Here you set what they may do in this application."
+msgstr "Henkilöt tulevat Rock Software ID:stä. Täällä määrität, mitä he saavat tehdä tässä sovelluksessa."
+
+msgid "Name, email or phone"
+msgstr "Nimi, sähköposti tai puhelin"
+
+msgid "Access"
+msgstr "Käyttöoikeus"
+
+msgid "Email · phone"
+msgstr "Sähköposti · puhelin"
+
+msgid "Actions"
+msgstr "Toiminnot"
+
+msgid "Removing access is on hold for {0} person"
+msgid_plural "Removing access is on hold for {0} people"
+msgstr[0] "Käyttöoikeuden poisto on pysäytetty {0} henkilöltä"
+msgstr[1] "Käyttöoikeuden poisto on pysäytetty {0} henkilöltä"
+
+msgid "Rock Software ID asked to remove access for {0} person while this application has {1} people with access. That is usually a mistake in a group, so the removal waits for you. Until you decide, nobody on this list can start a new sign-in."
+msgid_plural "Rock Software ID asked to remove access for {0} people while this application has {1} people with access. That is usually a mistake in a group, so these removals wait for you. Until you decide, nobody on this list can start a new sign-in."
+msgstr[0] "Rock Software ID pyysi poistamaan käyttöoikeuden {0} henkilöltä, kun tässä sovelluksessa on {1} käyttöoikeuden omaavaa henkilöä. Se on yleensä virhe jossakin ryhmässä, joten poisto odottaa päätöstäsi. Ennen kuin päätät, kukaan listalla ei voi kirjautua uudelleen."
+msgstr[1] "Rock Software ID pyysi poistamaan käyttöoikeuden {0} henkilöltä, kun tässä sovelluksessa on {1} käyttöoikeuden omaavaa henkilöä. Se on yleensä virhe jossakin ryhmässä, joten poistot odottavat päätöstäsi. Ennen kuin päätät, kukaan listalla ei voi kirjautua uudelleen."
+
+msgid "{0} hour"
+msgid_plural "{0} hours"
+msgstr[0] "{0} tunti"
+msgstr[1] "{0} tuntia"
+
+msgid "{0} minute"
+msgid_plural "{0} minutes"
+msgstr[0] "{0} minuutti"
+msgstr[1] "{0} minuuttia"
+
+msgid "Also: {0}"
+msgstr "Myös: {0}"
+
+msgid "used here"
+msgstr "käytössä täällä"
+
+msgid "Other addresses"
+msgstr "Muut osoitteet"
+
+msgid "Name, email addresses, phone and access dates are kept in Rock Software ID."
+msgstr "Nimeä, sähköpostiosoitteita, puhelinta ja käyttöoikeuden päiviä ylläpidetään Rock Software ID:ssä."
+
+msgid "Browser"
+msgstr "Selain"
+
+msgid "Other"
+msgstr "Muu"
