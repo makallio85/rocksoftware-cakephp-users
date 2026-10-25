@@ -4,8 +4,10 @@ declare(strict_types=1);
 namespace RockSoftware\Users\Test\TestCase\View\Helper;
 
 use Authentication\Identity;
+use Cake\Core\Configure;
 use Cake\Http\ServerRequest;
 use Cake\Http\Session;
+use Cake\I18n\DateTime;
 use Cake\Routing\Router;
 use Cake\TestSuite\TestCase;
 use Cake\View\View;
@@ -71,7 +73,27 @@ class UserMenuHelperTest extends TestCase
         $this->assertStringNotContainsString('/if/user/', $html, 'no account link without a connection');
     }
 
-    private function signedInRequest(): ServerRequest
+    public function testTheSignInTimeIsShownInTheDisplayTimezone(): void
+    {
+        // 10.30 UTC is 12.30 in Helsinki in January.
+        $establishedAt = (new DateTime('2026-01-15 10:30:00', 'UTC'))->getTimestamp();
+
+        $helper = new UserMenuHelper(new View($this->signedInRequest($establishedAt)));
+        $detail = fn(): string => $helper->items()[0]['detail'];
+
+        try {
+            $this->assertStringEndsWith(' at 12.30', $detail(), 'Europe/Helsinki when nothing names a zone');
+            Configure::write('App.displayTimezone', 'America/New_York');
+            $this->assertStringEndsWith(' at 05.30', $detail(), 'the application\'s display time zone');
+            Configure::write('Ui.displayTimezone', 'Asia/Tokyo');
+            $this->assertStringEndsWith(' at 19.30', $detail(), 'the UI plugin\'s display time zone first');
+        } finally {
+            Configure::delete('App.displayTimezone');
+            Configure::delete('Ui');
+        }
+    }
+
+    private function signedInRequest(?int $establishedAt = null): ServerRequest
     {
         $users = $this->fetchTable('Users');
         $user = $users->saveOrFail($users->newEntity([
@@ -84,7 +106,7 @@ class UserMenuHelperTest extends TestCase
         $session->write([
             SignInSession::AUTHENTICATED => true,
             SignInSession::METHOD => SignInSession::METHOD_OIDC,
-            SignInSession::ESTABLISHED_AT => time(),
+            SignInSession::ESTABLISHED_AT => $establishedAt ?? time(),
             SignInSession::APPS => [
                 ['name' => 'This App', 'url' => 'https://app.example.test/'],
                 ['name' => 'Bookings', 'url' => 'https://bookings.example.test/'],

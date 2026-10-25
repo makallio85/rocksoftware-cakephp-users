@@ -3,11 +3,11 @@ declare(strict_types=1);
 
 namespace RockSoftware\Users\Service;
 
-use Cake\Core\Configure;
 use Cake\Datasource\EntityInterface;
 use Cake\I18n\DateTime;
 use DateTimeInterface;
 use RockSoftware\Users\Model\Entity\SessionEventType;
+use RockSoftware\Users\UsersPlugin;
 
 /**
  * Whether a user may use the application right now. Every way in asks here:
@@ -115,15 +115,13 @@ final class UserAccess
 
     /**
      * A moment as people read it: day, month, year and time in
-     * `RockSoftwareUsers.timezone` (Europe/Helsinki by default).
+     * the display time zone (`UsersPlugin::displayTimezone()`).
      *
      * @param \DateTimeInterface $moment The moment.
      * @return string
      */
     public static function format(DateTimeInterface $moment): string
     {
-        $zone = (string)(Configure::read('RockSoftwareUsers.timezone') ?? 'Europe/Helsinki');
-
-        return DateTime::parse($moment)->setTimezone($zone)->format('j.n.Y H.i');
+        return DateTime::parse($moment)->setTimezone(UsersPlugin::displayTimezone())->format('j.n.Y H.i');
     }
 }

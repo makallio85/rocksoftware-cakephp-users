@@ -8,6 +8,7 @@ use Cake\Cache\Cache;
 use Cake\Console\CommandCollection;
 use Cake\Core\BasePlugin;
 use Cake\Core\Configure;
+use Cake\Core\Plugin;
 use Cake\Core\PluginApplicationInterface;
 use Cake\Datasource\ConnectionManager;
 use Cake\Event\EventManager;
@@ -20,6 +21,8 @@ use Cake\I18n\Package;
 use Cake\I18n\Parser\PoFileParser;
 use Cake\Routing\Middleware\RoutingMiddleware;
 use Cake\Routing\RouteBuilder;
+use DateTimeZone;
+use Exception;
 use Psr\Http\Server\MiddlewareInterface;
 use RockSoftware\Users\Command\ConfigureCommand;
 use RockSoftware\Users\Command\EmergencySignInCommand;
@@ -71,6 +74,12 @@ class UsersPlugin extends BasePlugin
 
     public const SCIM_PATH = '/auth/scim/v2';
 
+    /** The UI plugin (makallio85/rocksoftware-cakephp-ui), when the application loads it. */
+    public const UI_PLUGIN = 'RockSoftware/Ui';
+
+    /** The zone moments are shown in when nothing else names one. */
+    public const FALLBACK_TIMEZONE = 'Europe/Helsinki';
+
     /**
      * Every setting and its default. An application overrides any of them in
      * `Configure::write('RockSoftwareUsers', [...])` (usually `config/app.php`).
@@ -80,11 +89,14 @@ class UsersPlugin extends BasePlugin
      * - `alertWebhookUrl`: an https address that also receives every alert
      *   (`AccessManager::EVENT_ALERT`) as JSON, e.g. an IT monitoring
      *   application; null for none.
-     * - `timezone`: the zone dates are shown in to people (access start and
-     *   end, emergency link expiry).
+     * - `timezone`: the zone moments are shown in to people (the user menu's
+     *   sign-in time, access start and end); null follows the application:
+     *   see `displayTimezone()`.
      * - `signInUrl` / `loginRedirect`: the sign-in page, and where to go after.
-     * - `layout`: the sign-in and emergency pages' layout (the plugin's own).
-     * - `appName`: shown on the plugin's sign-in layout.
+     * - `layout`: the sign-in and emergency pages' layout; null picks one:
+     *   see `signInLayout()`.
+     * - `appName`: the application's name on the plugin's own sign-in
+     *   layout. With the UI plugin, its `Ui.appName` is shown instead.
      * - `createUsers`: create a user on first sign-in when none matches.
      * - `settingsAccess`: who may open the settings page; a callable receiving
      *   the identity and the request. Null means any signed-in user, who is
@@ -116,10 +128,10 @@ class UsersPlugin extends BasePlugin
     public const DEFAULTS = [
         'systemUsers' => [],
         'alertWebhookUrl' => null,
-        'timezone' => 'Europe/Helsinki',
+        'timezone' => null,
         'signInUrl' => '/auth',
         'signInRedirect' => '/',
-        'layout' => 'RockSoftware/Users.sign_in',
+        'layout' => null,
         'appName' => null,
         'createUsers' => true,
         'settingsAccess' => null,
@@ -255,6 +267,49 @@ class UsersPlugin extends BasePlugin
 
             return new Package('default', null, $messages);
         });
+    }
+
+    /**
+     * The layout of the sign-in and emergency pages: `RockSoftwareUsers.layout`
+     * when the application names one, otherwise the UI plugin's `auth` layout
+     * when it is loaded (its brand mark, `Ui.appName` and
+     * `Ui.organizationName`), otherwise the plugin's own `sign_in` layout.
+     *
+     * @return string
+     */
+    public static function signInLayout(): string
+    {
+        $layout = Configure::read('RockSoftwareUsers.layout');
+        if (is_string($layout) && $layout !== '') {
+            return $layout;
+        }
+
+        return Plugin::isLoaded(self::UI_PLUGIN) ? self::UI_PLUGIN . '.auth' : 'RockSoftware/Users.sign_in';
+    }
+
+    /**
+     * The zone moments are shown in to people: `RockSoftwareUsers.timezone`
+     * when the application sets it, otherwise the UI plugin's
+     * `Ui.displayTimezone`, otherwise `App.displayTimezone`, otherwise
+     * Europe/Helsinki. A name PHP does not know is skipped.
+     *
+     * @return string
+     */
+    public static function displayTimezone(): string
+    {
+        foreach (['RockSoftwareUsers.timezone', 'Ui.displayTimezone', 'App.displayTimezone'] as $key) {
+            $zone = Configure::read($key);
+            if (!is_string($zone) || $zone === '') {
+                continue;
+            }
+            try {
+                return (new DateTimeZone($zone))->getName();
+            } catch (Exception) {
+                continue;
+            }
+        }
+
+        return self::FALLBACK_TIMEZONE;
     }
 
     /**

@@ -67,10 +67,7 @@ class SignInController extends Controller
             ],
         );
 
-        $layout = Configure::read('RockSoftwareUsers.layout');
-        if (is_string($layout)) {
-            $this->viewBuilder()->setLayout($layout);
-        }
+        $this->viewBuilder()->setLayout(UsersPlugin::signInLayout());
     }
 
     /**

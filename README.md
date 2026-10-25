@@ -84,7 +84,7 @@ before changing anything when two users share an address. The plugin ships
 `RockSoftware\Users\Model\Table\UsersTable`; an application's own `UsersTable` may
 extend it, and one without its own class gets it.
 
-1. **Composer.** `composer require makallio85/rocksoftware-cakephp-users:^3.0` (Packagist; releases are
+1. **Composer.** `composer require makallio85/rocksoftware-cakephp-users:^3.2` (Packagist; releases are
    tags on `master`).
 2. **Plugin.** `$this->addPlugin(\RockSoftware\Users\UsersPlugin::class);` in `Application::bootstrap()`.
 3. **Migrations.** The application's first, then the plugin's:
@@ -100,15 +100,15 @@ secret.
 
 | Setting | Default | |
 |---|---|---|
-| `appName` | `null` | Shown on the plugin's sign-in page |
+| `appName` | `null` | The heading of the plugin's own sign-in card (without the UI plugin; with it, `Ui.appName` is shown) |
 | `signInRedirect` | `'/'` | Where a person lands after signing in |
 | `publicPaths` | `[]` | `fnmatch` patterns reachable without signing in, e.g. `'/health'`, `'/public-api/*'` |
 | `settingsAccess` | `null` | Who may open `/auth/settings`: `fn($identity, $request): bool`. Null means anyone signed in, who is already in the required group |
 | `usersAccess` | `null` | Who may open `/auth/users`, the same kind of callable. Null means whoever may open the settings page |
-| `layout` | `'RockSoftware/Users.sign_in'` | Layout of the sign-in and emergency pages; name the application's own to restyle them |
+| `layout` | `null` | Layout of the sign-in and emergency pages; null picks one (see *Sign-in pages*) |
 | `systemUsers` | `[]` | Ids of `users` rows the application runs jobs as (an application's system user): SCIM never touches them |
 | `alertWebhookUrl` | `null` | An https address that also receives every alert as JSON (an IT monitoring application) |
-| `timezone` | `'Europe/Helsinki'` | The zone access dates and link expiry are shown in |
+| `timezone` | `null` | The zone moments are shown in (the user menu's sign-in time, access dates); null follows the application: `Ui.displayTimezone`, else `App.displayTimezone`, else Europe/Helsinki |
 | `createUsers` | `true` | Create a user on first sign-in when none matches |
 | `authentication` | `'auto'` | Provide authentication when the application has no `AuthenticationMiddleware`; `true`/`false` force it |
 | `requireSignIn` | `'auto'` | Require sign-in everywhere when the plugin provides authentication; `true`/`false` force it |
@@ -126,9 +126,9 @@ of its pages are public; point its `unauthenticatedRedirect` at `/auth`.
   'action' => 'index']`) and `/auth/users` (`'controller' => 'Users'`). Their
   controllers extend the application's own `App\Controller\AppController`, so they
   render in the application's layout. Put the user menu in the layout (below).
-- **Look.** Override `templates/plugin/RockSoftware/Users/SignIn/index.php` (sign-in page),
-  `templates/plugin/RockSoftware/Users/Settings/index.php` or `templates/plugin/RockSoftware/Users/Users/*.php`
-  (Bootstrap 5 markup by default).
+- **Look.** The sign-in pages are the same in every application (see *Sign-in pages*);
+  do not override them. `templates/plugin/RockSoftware/Users/Settings/index.php` and
+  `templates/plugin/RockSoftware/Users/Users/*.php` can be overridden (Bootstrap 5 markup by default).
 - **Events.**
 
   | Event | Data | Typical use |
@@ -154,7 +154,7 @@ of its pages are public; point its `unauthenticatedRedirect` at `/auth`.
 
 ### Moving to 3.0
 
-1. `composer require makallio85/rocksoftware-cakephp-users:^3.0`.
+1. `composer require makallio85/rocksoftware-cakephp-users:^3.2`.
 2. Run the application's migrations **before** the plugin's (entrypoint and
    `tests/bootstrap.php`).
 3. A column with another name than the plugin's (`full_name`, say) is the
@@ -326,6 +326,26 @@ Settings › Identity provider › Sessions sets the longest session (hours) and
 time after which a person is signed out (minutes). Both are off by default. They apply
 to every session the plugin established.
 
+## Sign-in pages
+
+The sign-in page (`/auth`), the emergency sign-in page, the "sign-in is not configured
+yet" notice and the sign-in errors (flash messages) are one set of Bootstrap 5 templates,
+shown 1:1 in every application. An application keeps no copy of them.
+
+They render in a sign-in card. `UsersPlugin::signInLayout()` picks its layout:
+
+1. `RockSoftwareUsers.layout`, when the application names one;
+2. the UI plugin's `auth` layout (`RockSoftware/Ui.auth`), when the application loads
+   [`makallio85/rocksoftware-cakephp-ui`](https://github.com/makallio85/rocksoftware-cakephp-ui)
+   (a Composer *suggest*, not a requirement). The card's brand mark, application name and
+   the line under it come from its settings `Ui.brandIcon`, `Ui.appName` and
+   `Ui.organizationName` — the organisation that runs the application;
+3. otherwise the plugin's own `sign_in` layout: the same card in plain Bootstrap class
+   names, styled in the layout itself, headed by `RockSoftwareUsers.appName`.
+
+No page runs a script, so a Content Security Policy without `'unsafe-inline'` scripts
+holds. Texts are English and Finnish.
+
 ## User menu
 
 The signed-in person's menu, for the application's layout. A ready dropdown (no script,
@@ -348,6 +368,9 @@ foreach ($this->UserMenu->items() as $item) {
 The applications listed are the ones the person may open, from the provider's `apps`
 claim (a profile scope mapping in the identity provider), kept in the session at sign-in.
 Nothing is listed after a password or emergency sign-in.
+
+The header's "Signed in with … at HH.mm" is in the display time zone (the `timezone`
+setting above), not in UTC.
 
 ## Emergency sign-in
 
