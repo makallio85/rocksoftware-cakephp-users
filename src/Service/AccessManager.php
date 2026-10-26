@@ -13,6 +13,8 @@ use Cake\Log\Log;
 use Cake\ORM\Locator\LocatorAwareTrait;
 use Cake\ORM\Table;
 use DateTimeInterface;
+use RockSoftware\Settings\Settings;
+use RockSoftware\Settings\SettingsPlugin;
 use RockSoftware\Users\Model\Entity\AccessChange;
 use RockSoftware\Users\Model\Entity\AccessChangeType;
 use RockSoftware\Users\Model\Entity\HeldRevocation;
@@ -262,7 +264,7 @@ class AccessManager
             $response = ($this->http ?? new Client(['timeout' => 5]))->post($url, (string)json_encode([
                 'alert' => $alert,
                 'message' => $message,
-                'application' => Configure::read('RockSoftwareUsers.appName'),
+                'application' => Settings::get(SettingsPlugin::APPLICATION_NAME),
                 'email' => $user?->get(UserProvisioner::EMAIL),
                 'count' => $count,
                 'at' => DateTime::now()->toIso8601String(),

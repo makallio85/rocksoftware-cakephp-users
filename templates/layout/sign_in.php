@@ -3,7 +3,8 @@
  * The plugin's own layout for the sign-in and emergency pages, used when the
  * application loads no UI plugin and names no layout of its own
  * (`UsersPlugin::signInLayout()`). The same card as the UI plugin's `auth`
- * layout, with `RockSoftwareUsers.appName` as its heading.
+ * layout, headed by the settings plugin's `application.name` and, when it is
+ * not empty, `application.organization_name` under it.
  *
  * Self-contained: the few Bootstrap classes the pages use are styled here,
  * with no stylesheet from the application or a CDN, and there is no script
@@ -12,10 +13,12 @@
  *
  * @var \Cake\View\View $this
  */
-use Cake\Core\Configure;
 use Cake\I18n\I18n;
+use RockSoftware\Settings\Settings;
+use RockSoftware\Settings\SettingsPlugin;
 
-$appName = Configure::read('RockSoftwareUsers.appName');
+$appName = (string)Settings::get(SettingsPlugin::APPLICATION_NAME);
+$organizationName = (string)Settings::get(SettingsPlugin::APPLICATION_ORGANIZATION_NAME);
 $flashes = (array)$this->getRequest()->getSession()->consume('Flash.flash');
 $alertType = static fn(string $element): string => match (basename($element)) {
     'error' => 'danger',
@@ -29,7 +32,7 @@ $alertType = static fn(string $element): string => match (basename($element)) {
 <head>
     <?= $this->Html->charset() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= h($this->fetch('title')) ?><?= $appName ? ' · ' . h($appName) : '' ?></title>
+    <title><?= h($this->fetch('title')) ?><?= $appName !== '' ? ' · ' . h($appName) : '' ?></title>
     <style>
         :root { color-scheme: light; }
         *, *::before, *::after { box-sizing: border-box; }
@@ -71,9 +74,12 @@ $alertType = static fn(string $element): string => match (basename($element)) {
 <body>
 <main class="auth-shell">
     <div class="auth-card">
-        <?php if ($appName) : ?>
+        <?php if ($appName !== '') : ?>
         <div class="text-center mb-4">
             <h1 class="h5 mb-0"><?= h($appName) ?></h1>
+            <?php if ($organizationName !== '') : ?>
+            <p class="text-body-secondary small mb-0"><?= h($organizationName) ?></p>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
         <?php foreach ($flashes as $flash) : ?>
