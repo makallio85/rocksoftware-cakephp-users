@@ -8,6 +8,8 @@ use Cake\Datasource\ConnectionManager;
 use Cake\TestSuite\Fixture\SchemaLoader;
 use Cake\Utility\Security;
 use Migrations\Migrations;
+use RockSoftware\Settings\Settings;
+use RockSoftware\Settings\SettingsPlugin;
 use RockSoftware\Users\UsersPlugin;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -53,7 +55,6 @@ Configure::write('App', [
 ]);
 // The few lines an application writes; everything else is a default.
 Configure::write('RockSoftwareUsers', [
-    'appName' => 'Test App',
     'signInRedirect' => '/dashboard',
     'publicPaths' => ['/health'],
 ]);
@@ -84,6 +85,12 @@ Cache::setConfig([
 // every table first, so it runs before the plugin's own migration, which
 // gives the tests the schema an application actually gets.
 (new SchemaLoader())->loadInternalFile(__DIR__ . DS . 'schema.php', 'test');
+// The settings plugin, which every application loads, holds the application's name.
+Plugin::getCollection()->add(new SettingsPlugin());
+SettingsPlugin::applyDefaults();
+SettingsPlugin::declareApplicationSettings();
+(new Migrations(['connection' => 'test', 'plugin' => SettingsPlugin::NAME]))->migrate();
+Settings::set(SettingsPlugin::APPLICATION_NAME, 'Test App');
 Plugin::getCollection()->add(new UsersPlugin(['path' => dirname(__DIR__) . DS]));
 UsersPlugin::applyDefaults();
 UsersPlugin::loadTranslations();

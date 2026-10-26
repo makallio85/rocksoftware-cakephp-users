@@ -25,7 +25,7 @@ application through **SCIM** before their first day; the plugin keeps them in th
 application's `users` table, whose people columns it owns, and refuses every way in
 outside their access. **An application manages only permissions.** No user is ever
 deleted: access is revoked, and the row, its history and its permissions stay.
-Installing it is three steps and no code.
+Installing it is three steps and no code, beside the settings plugin every application loads.
 
 ## What it does
 
@@ -84,11 +84,19 @@ before changing anything when two users share an address. The plugin ships
 `RockSoftware\Users\Model\Table\UsersTable`; an application's own `UsersTable` may
 extend it, and one without its own class gets it.
 
-1. **Composer.** `composer require makallio85/rocksoftware-cakephp-users:^3.2` (Packagist; releases are
-   tags on `master`).
-2. **Plugin.** `$this->addPlugin(\RockSoftware\Users\UsersPlugin::class);` in `Application::bootstrap()`.
-3. **Migrations.** The application's first, then the plugin's:
-   `bin/cake migrations migrate && bin/cake migrations migrate -p RockSoftware/Users`
+1. **Composer.** `composer require makallio85/rocksoftware-cakephp-users:^3.3` (Packagist; releases are
+   tags on `dev`). It brings
+   [`makallio85/rocksoftware-cakephp-settings`](https://github.com/makallio85/rocksoftware-cakephp-settings),
+   which holds the application's name (`application.name`).
+2. **Plugins.** In `Application::bootstrap()`, the settings plugin (installed as its README says) and
+   this one:
+
+   ```php
+   $this->addPlugin(\RockSoftware\Settings\SettingsPlugin::class);
+   $this->addPlugin(\RockSoftware\Users\UsersPlugin::class);
+   ```
+3. **Migrations.** The application's first, then the plugins':
+   `bin/cake migrations migrate && bin/cake migrations migrate -p RockSoftware/Settings && bin/cake migrations migrate -p RockSoftware/Users`
    (in the deploy entrypoint and in `tests/bootstrap.php`).
 
 That is all. Then connect it to the provider (below) and sign in at `/auth`.
@@ -100,7 +108,6 @@ secret.
 
 | Setting | Default | |
 |---|---|---|
-| `appName` | `null` | The heading of the plugin's own sign-in card (without the UI plugin; with it, `Ui.appName` is shown) |
 | `signInRedirect` | `'/'` | Where a person lands after signing in |
 | `publicPaths` | `[]` | `fnmatch` patterns reachable without signing in, e.g. `'/health'`, `'/public-api/*'` |
 | `settingsAccess` | `null` | Who may open `/auth/settings`: `fn($identity, $request): bool`. Null means anyone signed in, who is already in the required group |
@@ -151,6 +158,14 @@ of its pages are public; point its `unauthenticatedRedirect` at `/auth`.
 - **Own second factor.** Skip it when `\RockSoftware\Users\Session\SignInSession::isProviderSession($session)`
   is true: the provider already required a second factor. A plugin password session is
   not one; an application with its own second factor keeps its own password form.
+
+### Moving to 3.3
+
+The application's name comes from the settings plugin's `application.name`: the sign-in card's
+heading, the page title and the alert webhook's `application` field. `RockSoftwareUsers.appName` is
+no longer read; remove it and seed the name in a migration of the application's own with
+`Settings::set('application.name', 'Example App')`. With the UI plugin, 3.3 needs its 2.0, which
+reads the same setting (`composer.json` conflicts with UI 1.x).
 
 ### Moving to 3.0
 
@@ -337,11 +352,14 @@ They render in a sign-in card. `UsersPlugin::signInLayout()` picks its layout:
 1. `RockSoftwareUsers.layout`, when the application names one;
 2. the UI plugin's `auth` layout (`RockSoftware/Ui.auth`), when the application loads
    [`makallio85/rocksoftware-cakephp-ui`](https://github.com/makallio85/rocksoftware-cakephp-ui)
-   (a Composer *suggest*, not a requirement). The card's brand mark, application name and
-   the line under it come from its settings `Ui.brandIcon`, `Ui.appName` and
-   `Ui.organizationName` — the organisation that runs the application;
+   2.0 or later (a Composer *suggest*, not a requirement). The card's brand mark comes from
+   `Ui.brandIcon`;
 3. otherwise the plugin's own `sign_in` layout: the same card in plain Bootstrap class
-   names, styled in the layout itself, headed by `RockSoftwareUsers.appName`.
+   names, styled in the layout itself.
+
+Either card is headed by the settings plugin's `application.name`, with
+`application.organization_name` — the organisation that runs the application — under it
+when it is not empty. Both are on the settings page (Settings › Application).
 
 No page runs a script, so a Content Security Policy without `'unsafe-inline'` scripts
 holds. Texts are English and Finnish.

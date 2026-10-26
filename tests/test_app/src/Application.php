@@ -9,6 +9,7 @@ use Cake\Http\Middleware\CsrfProtectionMiddleware;
 use Cake\Http\MiddlewareQueue;
 use Cake\Routing\Middleware\RoutingMiddleware;
 use Cake\Routing\RouteBuilder;
+use RockSoftware\Settings\SettingsPlugin;
 use RockSoftware\Users\UsersPlugin;
 
 /**
@@ -23,6 +24,7 @@ class Application extends BaseApplication
      */
     public function bootstrap(): void
     {
+        $this->addPlugin(SettingsPlugin::class);
         $this->addPlugin(UsersPlugin::class);
     }
 

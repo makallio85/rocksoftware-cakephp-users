@@ -95,8 +95,6 @@ class UsersPlugin extends BasePlugin
      * - `signInUrl` / `loginRedirect`: the sign-in page, and where to go after.
      * - `layout`: the sign-in and emergency pages' layout; null picks one:
      *   see `signInLayout()`.
-     * - `appName`: the application's name on the plugin's own sign-in
-     *   layout. With the UI plugin, its `Ui.appName` is shown instead.
      * - `createUsers`: create a user on first sign-in when none matches.
      * - `settingsAccess`: who may open the settings page; a callable receiving
      *   the identity and the request. Null means any signed-in user, who is
@@ -132,7 +130,6 @@ class UsersPlugin extends BasePlugin
         'signInUrl' => '/auth',
         'signInRedirect' => '/',
         'layout' => null,
-        'appName' => null,
         'createUsers' => true,
         'settingsAccess' => null,
         'usersAccess' => null,
@@ -272,8 +269,9 @@ class UsersPlugin extends BasePlugin
     /**
      * The layout of the sign-in and emergency pages: `RockSoftwareUsers.layout`
      * when the application names one, otherwise the UI plugin's `auth` layout
-     * when it is loaded (its brand mark, `Ui.appName` and
-     * `Ui.organizationName`), otherwise the plugin's own `sign_in` layout.
+     * when it is loaded (its brand mark and the settings plugin's
+     * `application.name` and `application.organization_name`), otherwise the
+     * plugin's own `sign_in` layout, with the same two settings.
      *
      * @return string
      */

@@ -23,7 +23,8 @@ composer cs-check
    new rejection path.
 3. **No application knowledge.** The plugin establishes identity and provides the pieces
    every application needs around it (sign-in page with password sign-in, session check
-   and limits, sign-in history, the users page, the user menu, the settings page). Installing stays three steps (require, `addPlugin`, migrate): the
+   and limits, sign-in history, the users page, the user menu, the settings page). Installing stays three steps (require, `addPlugin`, migrate), beside the settings plugin
+   (`makallio85/rocksoftware-cakephp-settings`, which holds `application.name`) every application loads: the
    plugin wires its own middleware in `UsersPlugin::middleware()`, every setting has a
    default in `UsersPlugin::DEFAULTS`, and its data lives in its own tables
    (`rock_software_users_*`). **Of `users`, the plugin owns the people columns** —

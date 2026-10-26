@@ -6,9 +6,11 @@ namespace RockSoftware\Users\Test\TestCase\Controller;
 use Cake\Core\Configure;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
+use RockSoftware\Settings\Settings;
+use RockSoftware\Settings\SettingsPlugin;
+use RockSoftware\Ui\UiPlugin;
 use RockSoftware\Users\Test\TestCase\FakeProvider;
 use RockSoftware\Users\UsersPlugin;
-use TestApp\UiStandInPlugin;
 
 /**
  * The sign-in pages' markup and the layout they are rendered in: the same
@@ -40,6 +42,8 @@ class SignInPagesTest extends TestCase
     {
         $this->removePlugins(['RockSoftware/Ui']);
         Configure::delete('Ui');
+        Settings::set(SettingsPlugin::APPLICATION_NAME, 'Test App');
+        Settings::set(SettingsPlugin::APPLICATION_ORGANIZATION_NAME, '');
         Configure::write('RockSoftwareUsers.layout', null);
         Configure::write('RockSoftwareUsers.passwordSignIn', false);
         parent::tearDown();
@@ -54,30 +58,47 @@ class SignInPagesTest extends TestCase
         $this->assertResponseOk();
         $this->assertResponseContains('<div class="auth-card">');
         $this->assertResponseContains('<h1 class="h5 mb-0">Test App</h1>');
+        $this->assertResponseContains('<title>Sign in · Test App</title>');
+        $this->assertResponseNotContains('text-body-secondary small', 'no line under the name while it is empty');
         $this->assertResponseContains('class="btn btn-primary btn-lg"');
         $this->assertResponseContains('<i class="bi bi-shield-lock me-1"></i> Sign in with Rock Software ID');
         $this->assertResponseNotContains('<script', 'the page runs no script, so no CSP needs to allow one');
     }
 
-    public function testWithTheUiPluginThePagesUseItsCardAndSettings(): void
+    public function testThePluginsOwnCardShowsTheLineUnderTheName(): void
     {
-        $this->loadPlugins([UiStandInPlugin::class]);
-        Configure::write('Ui', ['appName' => 'Example Console', 'organizationName' => 'Example Organisation']);
+        Settings::set(SettingsPlugin::APPLICATION_ORGANIZATION_NAME, 'Example Organisation');
+
+        $this->get('/auth');
+
+        $this->assertResponseContains('<h1 class="h5 mb-0">Test App</h1>');
+        $this->assertResponseContains('<p class="text-body-secondary small mb-0">Example Organisation</p>');
+    }
+
+    public function testWithTheUiPluginThePagesUseItsCardAndTheSettings(): void
+    {
+        $this->loadPlugins([UiPlugin::class]);
+        Settings::set(SettingsPlugin::APPLICATION_NAME, 'Example Console');
+        Settings::set(SettingsPlugin::APPLICATION_ORGANIZATION_NAME, 'Example Organisation');
+        Configure::write('RockSoftwareUsers.appName', 'Old Name');
 
         $this->assertSame('RockSoftware/Ui.auth', UsersPlugin::signInLayout());
         $this->get('/auth');
 
         $this->assertResponseOk();
         $this->assertResponseContains('<body class="kk-auth">');
-        $this->assertResponseContains('Example Console');
-        $this->assertResponseContains('<p class="ui-organization">Example Organisation</p>');
-        $this->assertResponseNotContains('Test App', 'the UI plugin is the one source of the card heading');
+        $this->assertResponseContains('<h1 class="h5 mt-3 mb-1">Example Console</h1>');
+        $this->assertResponseContains('<p class="text-body-secondary small mb-0">Example Organisation</p>');
+        $this->assertResponseContains('· Example Console</title>');
+        $this->assertResponseNotContains('Test App');
+        $this->assertResponseNotContains('Old Name', 'RockSoftwareUsers.appName is no longer read');
         $this->assertResponseContains('Sign in with Rock Software ID');
+        Configure::delete('RockSoftwareUsers.appName');
     }
 
     public function testALayoutTheApplicationNamesWins(): void
     {
-        $this->loadPlugins([UiStandInPlugin::class]);
+        $this->loadPlugins([UiPlugin::class]);
         Configure::write('RockSoftwareUsers.layout', 'default');
 
         $this->assertSame('default', UsersPlugin::signInLayout());

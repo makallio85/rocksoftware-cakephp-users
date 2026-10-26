@@ -7,8 +7,9 @@
  *
  * Bootstrap markup, rendered in the sign-in card of the layout
  * `UsersPlugin::signInLayout()` picks: the UI plugin's `auth` layout, which
- * shows the brand mark, `Ui.appName` and `Ui.organizationName`, or the
- * plugin's own `sign_in` layout. Every application shows this same page;
+ * shows the brand mark, the settings plugin's `application.name` and
+ * `application.organization_name`, or the plugin's own `sign_in` layout with
+ * the same two settings. Every application shows this same page;
  * none keeps a copy of it.
  *
  * @var \Cake\View\View $this
