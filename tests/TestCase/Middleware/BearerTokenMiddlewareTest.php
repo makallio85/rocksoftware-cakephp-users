@@ -9,6 +9,7 @@ use Cake\Datasource\EntityInterface;
 use Cake\Event\EventInterface;
 use Cake\Event\EventManager;
 use Cake\Http\Client;
+use Cake\Http\Client\Response as ClientResponse;
 use Cake\Http\ServerRequest;
 use Cake\I18n\DateTime;
 use Cake\TestSuite\IntegrationTestTrait;
@@ -18,6 +19,7 @@ use RockSoftware\Users\Middleware\BearerTokenMiddleware;
 use RockSoftware\Users\Model\Entity\SessionEventType;
 use RockSoftware\Users\Test\TestCase\FakeProvider;
 use RockSoftware\Users\UsersPlugin;
+use stdClass;
 
 /**
  * `/mcp` is the test application's bearer path, as an MCP endpoint would be.
@@ -278,8 +280,9 @@ class BearerTokenMiddlewareTest extends TestCase
     {
         $this->createUser();
 
-        // Signed with the public key as an HMAC secret: the classic key-confusion forgery.
-        $this->withToken($this->provider->accessToken([], 'any-shared-secret-of-sufficient-length-0123456789', 'HS256'));
+        // Signed with the published public key as an HMAC secret: the classic
+        // key-confusion forgery, which works where the key's type is not bound.
+        $this->withToken($this->provider->accessToken([], $this->provider->publicKeyPem(), 'HS256'));
         $this->get('/mcp');
 
         $this->assertInvalidToken();
@@ -492,20 +495,102 @@ class BearerTokenMiddlewareTest extends TestCase
             $this->get('/mcp');
             $this->assertResponseCode(401);
         }
-        $this->withToken($this->provider->accessToken());
+        $this->withToken($this->provider->accessToken([], FakeProvider::foreignKey()));
         $this->get('/mcp');
-
         $this->assertResponseCode(429);
         $this->assertHeader('Retry-After', '900');
         $this->assertSame(BearerTokenMiddleware::REASON_RATE_LIMITED, end($this->refusals)['reason']);
 
-        $this->_request = [];
-        $this->configRequest([
-            'environment' => ['REMOTE_ADDR' => '203.0.113.9'],
-            'headers' => ['Authorization' => 'Bearer ' . $this->provider->accessToken()],
-        ]);
+        $this->withToken($this->provider->accessToken());
         $this->get('/mcp');
-        $this->assertResponseOk('another address is not held back');
+        $this->assertResponseOk('a valid token is never held back by failures from the same address');
+    }
+
+    public function testValidTokensAreRateLimitedPerSubject(): void
+    {
+        $this->createUser();
+        Configure::write('RockSoftwareUsers.bearer.subjectRateLimit', 2);
+
+        for ($i = 0; $i < 2; $i++) {
+            $this->withToken($this->provider->accessToken());
+            $this->get('/mcp');
+            $this->assertResponseOk();
+        }
+        $this->withToken($this->provider->accessToken());
+        $this->get('/mcp');
+
+        $this->assertResponseCode(429);
+        $this->assertHeader('Retry-After', '300');
+        $this->assertSame(BearerTokenMiddleware::REASON_SUBJECT_RATE_LIMITED, end($this->refusals)['reason']);
+        $this->assertSame('subject-1', end($this->refusals)['subject']);
+    }
+
+    public function testProviderOutageIsNotCountedAgainstTheClient(): void
+    {
+        $this->createUser();
+        Configure::write('RockSoftwareUsers.bearer.rateLimit', 1);
+        Client::clearMockResponses();
+        Client::addMockResponse(
+            'GET',
+            FakeProvider::ISSUER . '.well-known/openid-configuration',
+            new ClientResponse(['HTTP/1.1 503 Service Unavailable']),
+        );
+
+        for ($i = 0; $i < 3; $i++) {
+            $this->withToken($this->provider->accessToken());
+            $this->get('/mcp');
+            $this->assertInvalidToken(BearerTokenMiddleware::REASON_PROVIDER_UNAVAILABLE);
+        }
+    }
+
+    public function testTokenWithoutIssueTimeIsRefused(): void
+    {
+        $this->createUser();
+
+        $this->withToken($this->provider->accessToken(['iat' => null]));
+        $this->get('/mcp');
+
+        $this->assertInvalidToken();
+    }
+
+    public function testIdTokenIsNotAnAccessToken(): void
+    {
+        $this->createUser();
+
+        // An ID token of the MCP client: a nonce, no scope.
+        $this->withToken($this->provider->accessToken(['nonce' => 'n-1', 'scope' => null]));
+        $this->get('/mcp');
+        $this->assertInvalidToken();
+
+        // Authentik copies the request's nonce into the access token, beside its scope.
+        $this->withToken($this->provider->accessToken(['nonce' => 'n-1']));
+        $this->get('/mcp');
+        $this->assertResponseOk();
+    }
+
+    public function testLogoutTokenIsNotAnAccessToken(): void
+    {
+        $this->createUser();
+
+        $this->withToken($this->provider->accessToken([
+            'events' => ['http://schemas.openid.net/event/backchannel-logout' => new stdClass()],
+        ]));
+        $this->get('/mcp');
+
+        $this->assertInvalidToken();
+    }
+
+    public function testTokenOfAnotherTypeIsRefused(): void
+    {
+        $this->createUser();
+
+        $this->withToken($this->provider->accessToken([], null, 'RS256', FakeProvider::KID, 'logout+jwt'));
+        $this->get('/mcp');
+        $this->assertInvalidToken();
+
+        $this->withToken($this->provider->accessToken([], null, 'RS256', FakeProvider::KID, 'at+jwt'));
+        $this->get('/mcp');
+        $this->assertResponseOk('RFC 9068 access tokens');
     }
 
     public function testAccessTokenIssuerMayBeAnotherProviderOnTheSameHost(): void

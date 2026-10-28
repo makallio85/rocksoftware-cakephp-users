@@ -131,6 +131,7 @@ final class FakeProvider
      * @param string|null $privateKey Signs with another key when given.
      * @param string $alg The signature algorithm.
      * @param string|null $kid The key id in the header; none when null.
+     * @param string|null $type The `typ` header; JWT (what Authentik writes) when null.
      * @return string
      */
     public function accessToken(
@@ -138,6 +139,7 @@ final class FakeProvider
         ?string $privateKey = null,
         string $alg = 'RS256',
         ?string $kid = self::KID,
+        ?string $type = null,
     ): string {
         $now = time();
 
@@ -151,7 +153,7 @@ final class FakeProvider
             'jti' => bin2hex(random_bytes(8)),
             'iat' => $now,
             'exp' => $now + 300,
-        ], $privateKey ?? $this->privateKey, $alg, $kid);
+        ], $privateKey ?? $this->privateKey, $alg, $kid, $type === null ? null : ['typ' => $type]);
     }
 
     /**
@@ -236,6 +238,17 @@ final class FakeProvider
             'iat' => $now,
             'exp' => $now + 3600,
         ], $privateKey ?? $this->privateKey, 'RS256', self::KID);
+    }
+
+    /**
+     * The published RSA key as PEM: what a key-confusion forgery uses as an
+     * HMAC secret.
+     *
+     * @return string
+     */
+    public function publicKeyPem(): string
+    {
+        return (string)openssl_pkey_get_details(openssl_pkey_get_private($this->privateKey))['key'];
     }
 
     /**

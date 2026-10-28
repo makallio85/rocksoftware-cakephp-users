@@ -24,6 +24,7 @@ use RockSoftware\Settings\Settings;
 use RockSoftware\Settings\SettingsPlugin;
 use RockSoftware\Users\Service\AccessTokenClaims;
 use RockSoftware\Users\Service\AccessTokenValidator;
+use RockSoftware\Users\Service\IdentityProviderUnavailableException;
 use RockSoftware\Users\Service\SignInException;
 use RockSoftware\Users\Service\SignInHistory;
 use RockSoftware\Users\Service\UserAccess;
@@ -55,9 +56,11 @@ use Throwable;
  * Refusals: 401 with an empty body and `WWW-Authenticate: Bearer` (with
  * `error="invalid_token"` when a token was sent, and `resource_metadata` when
  * `RockSoftwareUsers.bearer.resourceMetadataUrl` is set) for a missing or
- * invalid token; 403 for a valid token whose user has no access; 429 once a
- * client address has sent `rateLimit` invalid tokens within `rateWindow`
- * seconds. Each outcome dispatches `EVENT_ACCEPTED` or `EVENT_REFUSED`.
+ * invalid token; 403 for a valid token whose user has no access; 429 for an
+ * invalid token once its client address has sent `rateLimit` of them within
+ * `rateWindow` seconds, and for a valid token once its subject has made
+ * `subjectRateLimit` requests within `subjectRateWindow` seconds. Each
+ * outcome dispatches `EVENT_ACCEPTED` or `EVENT_REFUSED`.
  *
  * A request let in carries the identity in the application's identity
  * attribute (`identity`, like a signed-in session), `ATTRIBUTE_BEARER` and
@@ -86,18 +89,22 @@ class BearerTokenMiddleware implements MiddlewareInterface
     public const REASON_NOT_IN_GROUP = 'not_in_group';
     public const REASON_NO_ACCESS = 'no_access';
     public const REASON_RATE_LIMITED = 'rate_limited';
+    public const REASON_SUBJECT_RATE_LIMITED = 'subject_rate_limited';
+    public const REASON_PROVIDER_UNAVAILABLE = 'provider_unavailable';
 
-    private const RATE_KEY = 'rock_software_users_bearer_failures_';
+    private const ADDRESS_RATE_KEY = 'rock_software_users_bearer_failures_';
+
+    private const SUBJECT_RATE_KEY = 'rock_software_users_bearer_subject_';
 
     /**
      * The bearer settings with their defaults.
      *
-     * @return array{paths: list<string>, resourceMetadataUrl: string|null, rateLimit: int, rateWindow: int}
+     * @return array{paths: list<string>, resourceMetadataUrl: string|null, rateLimit: int, rateWindow: int, subjectRateLimit: int, subjectRateWindow: int}
      */
     public static function config(): array
     {
         $config = Configure::read('RockSoftwareUsers.bearer');
-        /** @var array{paths: list<string>, resourceMetadataUrl: string|null, rateLimit: int, rateWindow: int} */
+        /** @var array{paths: list<string>, resourceMetadataUrl: string|null, rateLimit: int, rateWindow: int, subjectRateLimit: int, subjectRateWindow: int} */
         return array_replace(UsersPlugin::DEFAULTS['bearer'], is_array($config) ? $config : []);
     }
 
@@ -133,18 +140,13 @@ class BearerTokenMiddleware implements MiddlewareInterface
             'path' => $request->getUri()->getPath(),
         ];
 
-        if (!$this->withinRateLimit($context['ipAddress'], $config, false)) {
-            return $this->refuse(429, self::REASON_RATE_LIMITED, $context)
-                ->withHeader('Retry-After', (string)$config['rateWindow']);
-        }
         $authorization = $request->getHeaderLine('Authorization');
         if (!preg_match('/^Bearer +([A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+) *$/i', $authorization, $match)) {
             if ($authorization === '') {
                 return $this->refuse(401, self::REASON_MISSING_TOKEN, $context);
             }
-            $this->withinRateLimit($context['ipAddress'], $config, true);
 
-            return $this->refuse(401, self::REASON_INVALID_TOKEN, $context);
+            return $this->refuseInvalidToken($context, $config);
         }
 
         try {
@@ -163,14 +165,23 @@ class BearerTokenMiddleware implements MiddlewareInterface
 
         try {
             $claims = (new AccessTokenValidator($connection))->validate($match[1], $audience);
+        } catch (IdentityProviderUnavailableException $e) {
+            // The provider is down: not the client's failure, so not counted.
+            Log::warning('Bearer token not checked: ' . $e->getMessage());
+
+            return $this->refuse(401, self::REASON_PROVIDER_UNAVAILABLE, $context);
         } catch (Throwable $e) {
             $reason = $e instanceof SignInException ? $e->getMessage() : get_class($e);
             Log::warning('Bearer token refused: ' . $reason);
-            $this->withinRateLimit($context['ipAddress'], $config, true);
 
-            return $this->refuse(401, self::REASON_INVALID_TOKEN, $context);
+            return $this->refuseInvalidToken($context, $config);
         }
         $context += ['subject' => $claims->subject, 'clientId' => $claims->clientId, 'jti' => $claims->jti];
+        $subjectKey = self::SUBJECT_RATE_KEY . $claims->subject;
+        if (!$this->count($subjectKey, $config['subjectRateLimit'], $config['subjectRateWindow'])) {
+            return $this->refuse(429, self::REASON_SUBJECT_RATE_LIMITED, $context)
+                ->withHeader('Retry-After', (string)$config['subjectRateWindow']);
+        }
 
         $provisioner = new UserProvisioner();
         $user = $provisioner->findBySubject($claims->subject);
@@ -339,30 +350,47 @@ class BearerTokenMiddleware implements MiddlewareInterface
     }
 
     /**
-     * Counts invalid tokens per client address. Checking (`$failed` false)
-     * tells whether the address is still under the limit; counting (`$failed`
-     * true) records one more.
+     * Refuses an invalid token: counts it against the client address,
+     * and answers 429 instead of 401 once the address has sent `rateLimit`
+     * invalid tokens within `rateWindow` seconds. A valid token is never held
+     * back by the failures of others at the same address.
      *
-     * @param string|null $ip The client address.
+     * @param array<string, mixed> $context What is known of the request.
      * @param array{rateLimit: int, rateWindow: int} $config The settings.
-     * @param bool $failed Record a failure.
-     * @return bool Whether the address is under the limit.
+     * @return \Psr\Http\Message\ResponseInterface
      */
-    private function withinRateLimit(?string $ip, array $config, bool $failed): bool
+    private function refuseInvalidToken(array $context, array $config): ResponseInterface
     {
-        $cache = (string)Configure::read('RockSoftwareUsers.cacheConfig', 'default');
-        $key = self::RATE_KEY . hash('sha256', (string)$ip);
-        $now = time();
-        $window = Cache::read($key, $cache);
-        if (!is_array($window) || ($window['start'] ?? 0) <= $now - $config['rateWindow']) {
-            $window = ['start' => $now, 'count' => 0];
-        }
-        if ($failed) {
-            $window['count']++;
-            Cache::write($key, $window, $cache);
+        $key = self::ADDRESS_RATE_KEY . (string)$context['ipAddress'];
+        if (!$this->count($key, $config['rateLimit'], $config['rateWindow'])) {
+            return $this->refuse(429, self::REASON_RATE_LIMITED, $context)
+                ->withHeader('Retry-After', (string)$config['rateWindow']);
         }
 
-        return $window['count'] < $config['rateLimit'];
+        return $this->refuse(401, self::REASON_INVALID_TOKEN, $context);
+    }
+
+    /**
+     * Counts one more request in a fixed window.
+     *
+     * @param string $name What is counted (an address, a subject).
+     * @param int $limit Requests allowed per window.
+     * @param int $window The window in seconds.
+     * @return bool Whether this request is within the limit.
+     */
+    private function count(string $name, int $limit, int $window): bool
+    {
+        $cache = (string)Configure::read('RockSoftwareUsers.cacheConfig', 'default');
+        $key = 'rock_software_users_bearer_rate_' . hash('sha256', $name);
+        $now = time();
+        $counter = Cache::read($key, $cache);
+        if (!is_array($counter) || ($counter['start'] ?? 0) <= $now - $window) {
+            $counter = ['start' => $now, 'count' => 0];
+        }
+        $counter['count']++;
+        Cache::write($key, $counter, $cache);
+
+        return $counter['count'] <= $limit;
     }
 
     /**

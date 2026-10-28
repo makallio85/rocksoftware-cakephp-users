@@ -126,7 +126,9 @@ class UsersPlugin extends BasePlugin
      *   or MCP endpoint, e.g. `/mcp`); none by default. `resourceMetadataUrl`
      *   is the protected-resource metadata address a 401 names (RFC 9728), null
      *   for none. `rateLimit` invalid tokens per client address within
-     *   `rateWindow` seconds, then 429. The audience a token must name is set on
+     *   `rateWindow` seconds, then 429 to its invalid tokens;
+     *   `subjectRateLimit` requests per person (`sub`) within
+     *   `subjectRateWindow` seconds, then 429. The audience a token must name is set on
      *   the settings page; until it is, every token is refused.
      *
      * @var array<string, mixed>
@@ -159,6 +161,8 @@ class UsersPlugin extends BasePlugin
             'resourceMetadataUrl' => null,
             'rateLimit' => 20,
             'rateWindow' => 900,
+            'subjectRateLimit' => 600,
+            'subjectRateWindow' => 300,
         ],
     ];
 

@@ -124,7 +124,7 @@ secret.
 | `cacheConfig` | `'default'` | Cache for the provider's discovery document and keys |
 | `passwordSignIn` | `false` | `true` when people may also sign in with a password from the users table: the sign-in page shows the form and `/auth/settings` the switch (see below) |
 | `provisioning` | see below | `POST /auth/provision`; `false` switches it off |
-| `bearer` | `['paths' => [], 'resourceMetadataUrl' => null, 'rateLimit' => 20, 'rateWindow' => 900]` | Access tokens on API and MCP paths (see *Bearer tokens*) |
+| `bearer` | `['paths' => [], 'resourceMetadataUrl' => null, 'rateLimit' => 20, 'rateWindow' => 900, 'subjectRateLimit' => 600, 'subjectRateWindow' => 300]` | Access tokens on API and MCP paths (see *Bearer tokens*) |
 
 An application with its own `AuthenticationMiddleware` keeps it, and keeps deciding which
 of its pages are public; point its `unauthenticatedRedirect` at `/auth`.
@@ -152,7 +152,7 @@ of its pages are public; point its `unauthenticatedRedirect` at `/auth`.
   | `RockSoftwareUsers.sessionsEnded` | `user`, `actor` | Audit log |
   | `RockSoftwareUsers.accessTokensChanged` | `user`, `audience`, `issuer` | Audit log |
   | `RockSoftwareUsers.bearerAccepted` | `user`, `clientId`, `scope`, `jti`, `subject`, `method`, `path`, `status` | Audit log of every request signed in with an access token |
-  | `RockSoftwareUsers.bearerRefused` | `reason`, `status`, `user`, `clientId`, `subject`, `jti`, `ipAddress`, `method`, `path` | Audit log of refused ones |
+  | `RockSoftwareUsers.bearerRefused` | `reason` (`missing_token`, `invalid_token`, `not_configured`, `provider_unavailable`, `token_revoked`, `unknown_user`, `not_in_group`, `no_access`, `rate_limited`, `subject_rate_limited`), `status`, `user`, `clientId`, `subject`, `jti`, `ipAddress`, `method`, `path` | Audit log of refused ones |
   | `RockSoftwareUsers.accessGranted` | `user`, `actorUserId` | A person got access (again) |
   | `RockSoftwareUsers.accessRevoked` | `user`, `revocation`, `actorUserId` | A person lost access, e.g. list their open work |
   | `RockSoftwareUsers.alertRaised` | `alert`, `message`, `user`, `count` | Send it on with the application's mailer |
@@ -274,8 +274,10 @@ authentication):
 - The token is checked locally, never sent anywhere: signed with RS256 or ES256 by a key
   the issuer publishes (cached, fetched again once for an unknown key id, at most every
   30 seconds), with a key id; `iss` equal to the issuer; `aud` (a string or a list)
-  containing the audience; `exp` present; `exp`, `nbf` and `iat` with 60 seconds of
-  leeway. `none`, HMAC and other algorithms are refused.
+  containing the audience; `exp` and `iat` present; `exp`, `nbf` and `iat` with 60
+  seconds of leeway. `none`, HMAC and other algorithms are refused, and so are ID
+  tokens (a `nonce` without a `scope`), logout tokens and a `typ` other than `JWT` or
+  `at+jwt`.
 - Its `sub` must be a user linked to Rock Software ID (`external_id`), in the
   connection's required group (the token's `groups`), with access now (`UserAccess`),
   and the token must be issued after the user's sessions were last ended (back-channel
@@ -287,8 +289,15 @@ authentication):
 - **Refused:** an empty body. 401 with `WWW-Authenticate: Bearer realm="<application
   name>"` for a missing token, plus `error="invalid_token"` for a refused one, plus
   `resource_metadata="…"` when configured; 403 for a valid token whose user has no
-  access; 429 (`Retry-After`) once a client address sent `rateLimit` invalid tokens
-  within `rateWindow` seconds.
+  access; 429 (`Retry-After`) to an invalid token once its client address sent
+  `rateLimit` of them within `rateWindow` seconds (a valid token from that address
+  still gets in), and to a valid one once its person made `subjectRateLimit` requests
+  within `subjectRateWindow` seconds. When Rock Software ID cannot be reached, the
+  refusal is not counted against the client.
+
+**3.4 changes for every sign-in:** ID and logout tokens must carry a key id (`kid`;
+firebase/php-jwt already required one), and the keys are fetched again only for an
+unknown key id, at most every 30 seconds (before: after any failed check).
 
 ## Password sign-in
 

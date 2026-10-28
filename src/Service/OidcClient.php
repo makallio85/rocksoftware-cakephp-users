@@ -41,6 +41,14 @@ class OidcClient
      */
     public const ACCESS_TOKEN_ALGORITHMS = ['RS256', 'ES256'];
 
+    /**
+     * The `typ` headers an access token may carry (RFC 9068's, and the plain
+     * `JWT` Authentik writes); none is fine too.
+     *
+     * @var array<string>
+     */
+    private const ACCESS_TOKEN_TYPES = ['jwt', 'at+jwt', 'application/at+jwt'];
+
     private const LEEWAY_SECONDS = 60;
 
     /** The shortest time between two fetches of the keys for an unknown key id. */
@@ -281,11 +289,29 @@ class OidcClient
         if ($audience === '') {
             throw new SignInException('No audience is configured for access tokens.');
         }
+        $type = $this->header($accessToken)['typ'] ?? null;
+        if ($type !== null && (!is_string($type) || !in_array(strtolower($type), self::ACCESS_TOKEN_TYPES, true))) {
+            throw new SignInException('The token is not an access token (typ).');
+        }
         $claims = $this->decode($accessToken, $audience, self::ACCESS_TOKEN_ALGORITHMS, false);
 
         $issuedAt = $claims['iat'] ?? null;
-        if ($issuedAt !== null && (!is_numeric($issuedAt) || $issuedAt > time() + self::LEEWAY_SECONDS)) {
+        if (!is_numeric($issuedAt)) {
+            // Needed to tell whether it outlived the user's ended sessions.
+            throw new SignInException('The access token has no issue time.');
+        }
+        if ($issuedAt > time() + self::LEEWAY_SECONDS) {
             throw new SignInException('The access token was issued in the future.');
+        }
+        // An ID token or a logout token of the same client is not an access
+        // token. Rock Software ID (Authentik) copies the authorization
+        // request's nonce into access tokens too, so a nonce alone does not
+        // tell them apart; the scope does, which only an access token carries.
+        if (array_key_exists('events', $claims)) {
+            throw new SignInException('A logout token is not an access token.');
+        }
+        if (array_key_exists('nonce', $claims) && !is_string($claims['scope'] ?? null)) {
+            throw new SignInException('An ID token is not an access token.');
         }
         if (!is_string($claims['sub'] ?? null) || $claims['sub'] === '') {
             throw new SignInException('The access token has no subject.');
@@ -427,14 +453,20 @@ class OidcClient
         try {
             $response = $this->http->get($url);
         } catch (Throwable $e) {
-            throw new SignInException(sprintf('The identity provider is unreachable (%s).', $e->getMessage()), 0, $e);
+            throw new IdentityProviderUnavailableException(
+                sprintf('The identity provider is unreachable (%s).', $e->getMessage()),
+                0,
+                $e,
+            );
         }
         if (!$response->isOk()) {
-            throw new SignInException(sprintf('%s answered %d.', $url, $response->getStatusCode()));
+            throw new IdentityProviderUnavailableException(
+                sprintf('%s answered %d.', $url, $response->getStatusCode()),
+            );
         }
         $body = $response->getJson();
         if (!is_array($body)) {
-            throw new SignInException(sprintf('%s did not return JSON.', $url));
+            throw new IdentityProviderUnavailableException(sprintf('%s did not return JSON.', $url));
         }
 
         return $body;
