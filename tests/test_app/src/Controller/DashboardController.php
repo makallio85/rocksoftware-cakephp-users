@@ -37,6 +37,24 @@ class DashboardController extends Controller
     }
 
     /**
+     * An MCP endpoint (`RockSoftwareUsers.bearer.paths`): answers with what the
+     * request knows about who is calling.
+     *
+     * @return \Cake\Http\Response
+     */
+    public function agent(): Response
+    {
+        $request = $this->getRequest();
+        $identity = $request->getAttribute('identity');
+
+        return $this->getResponse()->withType('application/json')->withStringBody((string)json_encode([
+            'email' => $identity?->get('email'),
+            'bearer' => $request->getAttribute('rockSoftwareUsers.bearer'),
+            'isViaAgent' => $request->getAttribute('rockSoftwareUsers.isViaAgent'),
+        ]));
+    }
+
+    /**
      * @return \Cake\Http\Response
      */
     public function health(): Response

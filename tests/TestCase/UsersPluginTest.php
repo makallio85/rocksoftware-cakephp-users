@@ -15,6 +15,7 @@ use Cake\Http\MiddlewareQueue;
 use Cake\Routing\Middleware\RoutingMiddleware;
 use Cake\TestSuite\TestCase;
 use RockSoftware\Users\Middleware\BackchannelLogoutMiddleware;
+use RockSoftware\Users\Middleware\BearerTokenMiddleware;
 use RockSoftware\Users\Middleware\ClientMetadataMiddleware;
 use RockSoftware\Users\Middleware\ProvisionMiddleware;
 use RockSoftware\Users\Middleware\RequireSignInMiddleware;
@@ -67,6 +68,7 @@ class UsersPluginTest extends TestCase
             ClientMetadataMiddleware::class,
             CsrfProtectionMiddleware::class,
             AuthenticationMiddleware::class,
+            BearerTokenMiddleware::class,
             SessionCheckMiddleware::class,
             RequireSignInMiddleware::class,
         ], $this->classes($queue));
@@ -86,6 +88,7 @@ class UsersPluginTest extends TestCase
             ClientMetadataMiddleware::class,
             CsrfProtectionMiddleware::class,
             AuthenticationMiddleware::class,
+            BearerTokenMiddleware::class,
             SessionCheckMiddleware::class,
         ], $this->classes($queue), 'no second authentication, and the application decides what is public');
     }

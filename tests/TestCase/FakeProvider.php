@@ -19,6 +19,8 @@ final class FakeProvider
     public const CLIENT_ID = 'app-client';
     public const CLIENT_SECRET = 'app-secret';
     public const KID = 'test-key';
+    /** The audience of access tokens: the client of the application's MCP endpoint. */
+    public const MCP_AUDIENCE = 'app-mcp-client';
 
     private string $privateKey;
 
@@ -26,6 +28,13 @@ final class FakeProvider
      * @var array<string, mixed>
      */
     private array $jwk;
+
+    /**
+     * Keys published besides the first, by key id.
+     *
+     * @var array<string, array<string, mixed>>
+     */
+    private array $extraJwks = [];
 
     public function __construct()
     {
@@ -48,16 +57,103 @@ final class FakeProvider
      *
      * @return void
      */
-    public function serveMetadata(): void
+    public function serveMetadata(string $issuer = self::ISSUER, ?string $jwksUri = null, ?int &$jwksFetches = null): void
     {
-        Client::addMockResponse('GET', self::ISSUER . '.well-known/openid-configuration', self::json([
-            'issuer' => self::ISSUER,
+        $jwksUri ??= $issuer . 'jwks/';
+        Client::addMockResponse('GET', $issuer . '.well-known/openid-configuration', self::json([
+            'issuer' => $issuer,
             'authorization_endpoint' => 'https://id.example.test/application/o/authorize/',
             'token_endpoint' => 'https://id.example.test/application/o/token/',
-            'jwks_uri' => self::ISSUER . 'jwks/',
-            'end_session_endpoint' => self::ISSUER . 'end-session/',
+            'jwks_uri' => $jwksUri,
+            'end_session_endpoint' => $issuer . 'end-session/',
         ]));
-        Client::addMockResponse('GET', self::ISSUER . 'jwks/', self::json(['keys' => [$this->jwk]]));
+        $jwksFetches = 0;
+        Client::addMockResponse(
+            'GET',
+            $jwksUri,
+            self::json(['keys' => array_values([$this->jwk] + $this->extraJwks)]),
+            ['match' => function () use (&$jwksFetches): bool {
+                $jwksFetches++;
+
+                return true;
+            }],
+        );
+    }
+
+    /**
+     * Publishes one more key (on the next `serveMetadata()`), and returns its
+     * private key.
+     *
+     * @param string $kid Its key id.
+     * @param string $type `RSA` (RS256) or `EC` (P-256, ES256).
+     * @param string|null $alg The `alg` the JWKS declares for it; none when null.
+     * @return string
+     */
+    public function addKey(string $kid, string $type = 'RSA', ?string $alg = 'RS256'): string
+    {
+        if ($type === 'EC') {
+            $resource = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'prime256v1']);
+            openssl_pkey_export($resource, $privateKey);
+            $details = openssl_pkey_get_details($resource);
+            $jwk = [
+                'kty' => 'EC',
+                'kid' => $kid,
+                'use' => 'sig',
+                'crv' => 'P-256',
+                'x' => self::b64(str_pad($details['ec']['x'], 32, "\0", STR_PAD_LEFT)),
+                'y' => self::b64(str_pad($details['ec']['y'], 32, "\0", STR_PAD_LEFT)),
+            ];
+        } else {
+            $resource = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+            openssl_pkey_export($resource, $privateKey);
+            $details = openssl_pkey_get_details($resource);
+            $jwk = [
+                'kty' => 'RSA',
+                'kid' => $kid,
+                'use' => 'sig',
+                'n' => self::b64($details['rsa']['n']),
+                'e' => self::b64($details['rsa']['e']),
+            ];
+        }
+        if ($alg !== null) {
+            $jwk['alg'] = $alg;
+        }
+        $this->extraJwks[$kid] = $jwk;
+
+        return $privateKey;
+    }
+
+    /**
+     * An access token for the application's MCP client, as Rock Software ID
+     * issues it, with defaults overridable per claim.
+     *
+     * @param array<string, mixed> $claims Claims to set or override.
+     * @param string|null $privateKey Signs with another key when given.
+     * @param string $alg The signature algorithm.
+     * @param string|null $kid The key id in the header; none when null.
+     * @param string|null $type The `typ` header; JWT (what Authentik writes) when null.
+     * @return string
+     */
+    public function accessToken(
+        array $claims = [],
+        ?string $privateKey = null,
+        string $alg = 'RS256',
+        ?string $kid = self::KID,
+        ?string $type = null,
+    ): string {
+        $now = time();
+
+        return JWT::encode($claims + [
+            'iss' => self::ISSUER,
+            'aud' => self::MCP_AUDIENCE,
+            'azp' => self::MCP_AUDIENCE,
+            'sub' => 'subject-1',
+            'scope' => 'openid email profile',
+            'groups' => ['app-staff'],
+            'jti' => bin2hex(random_bytes(8)),
+            'iat' => $now,
+            'exp' => $now + 300,
+        ], $privateKey ?? $this->privateKey, $alg, $kid, $type === null ? null : ['typ' => $type]);
     }
 
     /**
@@ -142,6 +238,17 @@ final class FakeProvider
             'iat' => $now,
             'exp' => $now + 3600,
         ], $privateKey ?? $this->privateKey, 'RS256', self::KID);
+    }
+
+    /**
+     * The published RSA key as PEM: what a key-confusion forgery uses as an
+     * HMAC secret.
+     *
+     * @return string
+     */
+    public function publicKeyPem(): string
+    {
+        return (string)openssl_pkey_get_details(openssl_pkey_get_private($this->privateKey))['key'];
     }
 
     /**

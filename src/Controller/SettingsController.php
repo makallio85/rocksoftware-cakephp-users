@@ -28,6 +28,8 @@ use RockSoftware\Users\Session\SignInSession;
  *                                 (`RockSoftwareUsers.passwordSignIn`)
  *   POST /auth/settings/sessions — the session limits and the sign-in
  *                                 history's retention
+ *   POST /auth/settings/access-tokens — the audience (and issuer) of access
+ *                                 tokens for `RockSoftwareUsers.bearer.paths`
  *
  * Who may open it is the application's decision: `RockSoftwareUsers.settingsAccess`, a
  * callable receiving the identity and the request. Without one, any signed-in
@@ -43,6 +45,8 @@ class SettingsController extends SettingsBaseController
     public const EVENT_PASSWORD_SIGN_IN_CHANGED = 'RockSoftwareUsers.passwordSignInChanged';
 
     public const EVENT_SESSION_LIMITS_CHANGED = 'RockSoftwareUsers.sessionLimitsChanged';
+
+    public const EVENT_ACCESS_TOKENS_CHANGED = 'RockSoftwareUsers.accessTokensChanged';
 
     /**
      * @return void
@@ -284,6 +288,40 @@ class SettingsController extends SettingsBaseController
     }
 
     /**
+     * Saves the access-token settings: the audience a token must name, and
+     * the issuer when it is another provider of Rock Software ID.
+     *
+     * @return \Cake\Http\Response|null
+     */
+    public function accessTokens(): ?Response
+    {
+        if (!$this->getRequest()->is('post')) {
+            return $this->redirect(['action' => 'index']);
+        }
+        $request = $this->getRequest();
+        $identity = $this->Authentication->getIdentity();
+        $manager = new ConnectionManager();
+        $problem = $manager->updateAccessTokens([
+            'bearer_audience' => (string)$request->getData('bearer_audience'),
+            'bearer_issuer_url' => (string)$request->getData('bearer_issuer_url'),
+        ], (int)$identity?->getIdentifier());
+        if ($problem !== null) {
+            $this->Flash->error(__d('rock_software_users', 'Access-token settings not saved. {0}', $problem));
+
+            return $this->redirect(['action' => 'index']);
+        }
+        $current = $manager->current();
+        EventManager::instance()->dispatch(new Event(self::EVENT_ACCESS_TOKENS_CHANGED, $this, [
+            'user' => $identity?->getOriginalData(),
+            'audience' => $current?->bearer_audience,
+            'issuer' => $current?->bearer_issuer_url,
+        ]));
+        $this->Flash->success(__d('rock_software_users', 'Access-token settings saved.'));
+
+        return $this->redirect(['action' => 'index']);
+    }
+
+    /**
      * A user's name (else email) for "changed by" lines, or null when the
      * user is gone or unknown.
      *
@@ -369,6 +407,8 @@ class SettingsController extends SettingsBaseController
             ),
             'passwordSignInChangedAt' => (new ConnectionManager())->current()?->password_sign_in_changed_at,
             'sessionLimits' => $this->fetchTable('RockSoftware/Users.Settings')->sessionLimits(),
+            'bearerAudience' => (new ConnectionManager())->current()?->bearer_audience,
+            'bearerIssuerUrl' => (new ConnectionManager())->current()?->bearer_issuer_url,
         ]);
         $this->render('index');
     }
