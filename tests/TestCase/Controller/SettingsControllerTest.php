@@ -405,6 +405,101 @@ class SettingsControllerTest extends TestCase
         $this->assertResponseContains('name="session_idle_minutes" min="0" value="60"');
     }
 
+    public function testAccessTokenSettingsAreSavedAndShown(): void
+    {
+        $admin = $this->createUser('admin@example.test');
+        $this->connect(self::GOOD);
+        $this->signIn($admin);
+        $changed = null;
+        EventManager::instance()->on(
+            SettingsController::EVENT_ACCESS_TOKENS_CHANGED,
+            function ($event) use (&$changed): void {
+                $changed = $event->getData();
+            },
+        );
+        $mcpIssuer = 'https://id.example.test/application/o/app-mcp/';
+        $this->mockClientGet($mcpIssuer . '.well-known/openid-configuration', $this->newClientResponse(
+            200,
+            ['Content-Type: application/json'],
+            (string)json_encode([
+                'issuer' => $mcpIssuer,
+                'authorization_endpoint' => $mcpIssuer . 'authorize/',
+                'token_endpoint' => $mcpIssuer . 'token/',
+                'jwks_uri' => $mcpIssuer . 'jwks/',
+            ]),
+        ));
+
+        try {
+            $this->post('/auth/settings/access-tokens', [
+                'bearer_audience' => ' app-mcp ',
+                'bearer_issuer_url' => 'https://id.example.test/application/o/app-mcp',
+            ]);
+        } finally {
+            EventManager::instance()->off(SettingsController::EVENT_ACCESS_TOKENS_CHANGED);
+        }
+
+        $this->assertRedirect('/auth/settings');
+        $this->assertFlashMessage('Access-token settings saved.');
+        $current = $this->fetchTable('RockSoftware/Users.Settings')->current();
+        $this->assertSame('app-mcp', $current->bearer_audience);
+        $this->assertSame($mcpIssuer, $current->bearer_issuer_url);
+        $this->assertSame('app-mcp', $changed['audience']);
+        $this->assertSame($mcpIssuer, $changed['issuer']);
+        $this->get('/auth/settings');
+        $this->assertResponseContains('name="bearer_audience" maxlength="255" value="app-mcp"');
+    }
+
+    public function testAccessTokenIssuerOnAnotherHostIsNotSaved(): void
+    {
+        $this->connect(self::GOOD);
+        $this->signIn($this->createUser('admin@example.test'));
+
+        $this->post('/auth/settings/access-tokens', [
+            'bearer_audience' => 'app-mcp',
+            'bearer_issuer_url' => self::OTHER,
+        ]);
+
+        $this->assertFlashMessage(
+            'Access-token settings not saved. The access-token issuer must be an https address on the identity server\'s host.',
+        );
+        $this->assertNull($this->fetchTable('RockSoftware/Users.Settings')->current()->bearer_audience);
+    }
+
+    public function testAccessTokenIssuerThatDoesNotAnswerIsNotSaved(): void
+    {
+        $this->connect(self::GOOD);
+        $this->signIn($this->createUser('admin@example.test'));
+
+        $this->post('/auth/settings/access-tokens', [
+            'bearer_audience' => 'app-mcp',
+            'bearer_issuer_url' => self::MISSING,
+        ]);
+
+        $this->assertFlashMessageAt(0, 'Access-token settings not saved. ' . self::MISSING . '.well-known/openid-configuration answered 404.');
+        $this->assertNull($this->fetchTable('RockSoftware/Users.Settings')->current()->bearer_issuer_url);
+    }
+
+    public function testAccessTokenAudienceIsOneClientId(): void
+    {
+        $this->connect(self::GOOD);
+        $this->signIn($this->createUser('admin@example.test'));
+
+        $this->post('/auth/settings/access-tokens', ['bearer_audience' => 'one two']);
+
+        $this->assertFlashMessage('Access-token settings not saved. The audience is one client ID, without spaces.');
+    }
+
+    public function testAccessTokenSettingsNeedAccess(): void
+    {
+        $this->connect(self::GOOD);
+        $this->signIn($this->createUser('someone@example.test'));
+
+        $this->post('/auth/settings/access-tokens', ['bearer_audience' => 'app-mcp']);
+
+        $this->assertResponseCode(403);
+        $this->assertNull($this->fetchTable('RockSoftware/Users.Settings')->current()->bearer_audience);
+    }
+
     public function testAllowProvisioningNeedsPostAndAccess(): void
     {
         $settings = $this->fetchTable('RockSoftware/Users.Settings');

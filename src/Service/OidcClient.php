@@ -33,7 +33,18 @@ class OidcClient
      */
     private const ALGORITHMS = ['RS256', 'RS384', 'RS512', 'ES256', 'ES384'];
 
+    /**
+     * The algorithms an access token may be signed with: those Rock Software
+     * ID signs with.
+     *
+     * @var array<string>
+     */
+    public const ACCESS_TOKEN_ALGORITHMS = ['RS256', 'ES256'];
+
     private const LEEWAY_SECONDS = 60;
+
+    /** The shortest time between two fetches of the keys for an unknown key id. */
+    private const KEY_REFRESH_SECONDS = 30;
 
     private Client $http;
 
@@ -255,30 +266,76 @@ class OidcClient
     }
 
     /**
+     * Verifies an access token issued for a resource server (an API or MCP
+     * endpoint of this application) and returns its claims: signed with one
+     * of `ACCESS_TOKEN_ALGORITHMS` by a key of the issuer, `iss` equal to the
+     * issuer, `aud` containing the audience, unexpired, and not issued or valid
+     * only in the future (60 seconds of leeway).
+     *
+     * @param string $accessToken The bearer token.
+     * @param string $audience The audience it must name.
+     * @return array<string, mixed>
+     */
+    public function validateAccessToken(string $accessToken, string $audience): array
+    {
+        if ($audience === '') {
+            throw new SignInException('No audience is configured for access tokens.');
+        }
+        $claims = $this->decode($accessToken, $audience, self::ACCESS_TOKEN_ALGORITHMS, false);
+
+        $issuedAt = $claims['iat'] ?? null;
+        if ($issuedAt !== null && (!is_numeric($issuedAt) || $issuedAt > time() + self::LEEWAY_SECONDS)) {
+            throw new SignInException('The access token was issued in the future.');
+        }
+        if (!is_string($claims['sub'] ?? null) || $claims['sub'] === '') {
+            throw new SignInException('The access token has no subject.');
+        }
+
+        return $claims;
+    }
+
+    /**
      * Verifies signature, issuer, audience and lifetime.
      *
      * @param string $jwt The token.
+     * @param string|null $audience The audience it must name; the client ID when null.
+     * @param array<string> $algorithms The signature algorithms accepted.
+     * @param bool $authorizedPartyCheck Whether a token naming several audiences
+     *   must name the audience as its authorized party (`azp`), as an ID token must.
      * @return array<string, mixed>
      */
-    private function decode(string $jwt): array
-    {
+    private function decode(
+        string $jwt,
+        ?string $audience = null,
+        array $algorithms = self::ALGORITHMS,
+        bool $authorizedPartyCheck = true,
+    ): array {
+        $audience ??= $this->setting->client_id;
         $header = $this->header($jwt);
         $alg = $header['alg'] ?? null;
-        if (!is_string($alg) || !in_array($alg, self::ALGORITHMS, true)) {
+        if (!is_string($alg) || !in_array($alg, $algorithms, true)) {
             throw new SignInException('The token is not signed with an accepted algorithm.');
+        }
+        $kid = $header['kid'] ?? null;
+        if (!is_string($kid) || $kid === '') {
+            throw new SignInException('The token names no signing key.');
+        }
+
+        $keys = $this->keys($alg, false);
+        if (!isset($keys[$kid]) && $this->mayRefreshKeys()) {
+            // An unknown key id means the provider has rotated its keys since
+            // they were cached. Fetch them once more before giving up.
+            $keys = $this->keys($alg, true);
+        }
+        if (!isset($keys[$kid])) {
+            throw new SignInException('The token is signed with a key the provider does not publish.');
         }
 
         JWT::$leeway = self::LEEWAY_SECONDS;
         try {
-            $payload = JWT::decode($jwt, $this->keys($alg, false));
-        } catch (Throwable $first) {
-            // An unknown key id means the provider has rotated its keys since
-            // they were cached. Fetch them once more before giving up.
-            try {
-                $payload = JWT::decode($jwt, $this->keys($alg, true));
-            } catch (Throwable $e) {
-                throw new SignInException('The token signature or lifetime is invalid: ' . $e->getMessage(), 0, $e);
-            }
+            $payload = JWT::decode($jwt, $keys);
+        } catch (Throwable $e) {
+            throw new SignInException('The token signature or lifetime is invalid: ' . $e->getMessage(), 0, $e);
         }
 
         /** @var array<string, mixed> $claims */
@@ -288,11 +345,15 @@ class OidcClient
         if (!is_string($issuer) || rtrim($issuer, '/') !== rtrim($this->setting->issuer_url, '/')) {
             throw new SignInException('The token was issued by a different issuer.');
         }
-        $audience = (array)($claims['aud'] ?? []);
-        if (!in_array($this->setting->client_id, $audience, true)) {
+        $audiences = $claims['aud'] ?? [];
+        if (!is_string($audiences) && !is_array($audiences)) {
+            throw new SignInException('The token names no audience.');
+        }
+        $audiences = (array)$audiences;
+        if (!in_array($audience, $audiences, true)) {
             throw new SignInException('The token was issued to a different client.');
         }
-        if (count($audience) > 1 && ($claims['azp'] ?? null) !== $this->setting->client_id) {
+        if ($authorizedPartyCheck && count($audiences) > 1 && ($claims['azp'] ?? null) !== $audience) {
             throw new SignInException('The token names several audiences but not this client as the authorized party.');
         }
         if (!isset($claims['exp'])) {
@@ -300,6 +361,25 @@ class OidcClient
         }
 
         return $claims;
+    }
+
+    /**
+     * Whether the keys may be fetched again for an unknown key id: at most
+     * once per `KEY_REFRESH_SECONDS`, so tokens naming made-up keys cannot
+     * make every request call the provider.
+     *
+     * @return bool
+     */
+    private function mayRefreshKeys(): bool
+    {
+        $key = 'rock_software_users_jwks_refreshed_' . md5($this->setting->issuer_url);
+        $last = Cache::read($key, self::cacheConfig());
+        if (is_int($last) && $last > time() - self::KEY_REFRESH_SECONDS) {
+            return false;
+        }
+        Cache::write($key, time(), self::cacheConfig());
+
+        return true;
     }
 
     /**

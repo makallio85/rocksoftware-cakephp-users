@@ -11,7 +11,8 @@ use RockSoftware\Users\UsersPlugin;
 
 /**
  * Whether a user may use the application right now. Every way in asks here:
- * Rock Software ID, password sign-in, emergency links and the session check.
+ * Rock Software ID, password sign-in, emergency links, the session check and
+ * access tokens (`BearerTokenMiddleware`).
  *
  * - `is_active` off: access was revoked (by Rock Software ID, or on the
  *   server before 3.0).

@@ -10,11 +10,13 @@ use Cake\Http\MiddlewareQueue;
 use Cake\Routing\Middleware\RoutingMiddleware;
 use Cake\Routing\RouteBuilder;
 use RockSoftware\Settings\SettingsPlugin;
+use RockSoftware\Users\Middleware\BearerTokenMiddleware;
 use RockSoftware\Users\UsersPlugin;
 
 /**
  * A consuming application with no sign-in wiring of its own: the queue an
- * application template ships, plus the plugin. Everything else is the
+ * application template ships, plus the plugin (and, for its bearer paths,
+ * the CSRF exemption every application with them adds). Everything else is the
  * plugin's middleware hook at work.
  */
 class Application extends BaseApplication
@@ -37,7 +39,9 @@ class Application extends BaseApplication
         return $middlewareQueue
             ->add(new RoutingMiddleware($this))
             ->add(new BodyParserMiddleware())
-            ->add(new CsrfProtectionMiddleware());
+            // The one line an application with bearer paths adds: those
+            // requests carry no session, so no CSRF token either.
+            ->add((new CsrfProtectionMiddleware())->skipCheckCallback(BearerTokenMiddleware::isBearerRequest(...)));
     }
 
     /**
@@ -47,6 +51,7 @@ class Application extends BaseApplication
     public function routes(RouteBuilder $routes): void
     {
         $routes->connect('/dashboard', ['controller' => 'Dashboard', 'action' => 'index']);
+        $routes->connect('/mcp', ['controller' => 'Dashboard', 'action' => 'agent']);
         $routes->connect('/health', ['controller' => 'Dashboard', 'action' => 'health']);
         parent::routes($routes);
     }

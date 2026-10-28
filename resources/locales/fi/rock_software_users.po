@@ -677,3 +677,36 @@ msgstr "Selain"
 
 msgid "Other"
 msgstr "Muu"
+
+msgid "Access tokens"
+msgstr "Käyttöoikeustunnisteet"
+
+msgid "For the application's API and MCP paths: tools sign in with an access token from Rock Software ID instead of a browser session. Empty audience refuses every token."
+msgstr "Sovelluksen API- ja MCP-poluille: työkalut kirjautuvat Rock Software ID:n myöntämällä käyttöoikeustunnisteella selainistunnon sijaan. Kun yleisö on tyhjä, jokainen tunniste hylätään."
+
+msgid "Audience"
+msgstr "Yleisö (audience)"
+
+msgid "The client ID the tokens are issued for."
+msgstr "Asiakastunnus (client ID), jolle tunnisteet myönnetään."
+
+msgid "Token issuer"
+msgstr "Tunnisteen myöntäjä"
+
+msgid "When the client is another application in Rock Software ID. Empty: the identity server address above."
+msgstr "Kun asiakas on toinen sovellus Rock Software ID:ssä. Tyhjä: yllä oleva tunnistuspalvelimen osoite."
+
+msgid "Access-token settings not saved. {0}"
+msgstr "Käyttöoikeustunnisteiden asetuksia ei tallennettu. {0}"
+
+msgid "Access-token settings saved."
+msgstr "Käyttöoikeustunnisteiden asetukset tallennettu."
+
+msgid "Connect the identity server first."
+msgstr "Yhdistä ensin tunnistuspalvelin."
+
+msgid "The audience is one client ID, without spaces."
+msgstr "Yleisö on yksi asiakastunnus ilman välilyöntejä."
+
+msgid "The access-token issuer must be an https address on the identity server's host."
+msgstr "Tunnisteen myöntäjän on oltava https-osoite tunnistuspalvelimen palvelimella."

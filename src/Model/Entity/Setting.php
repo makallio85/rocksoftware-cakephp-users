@@ -25,6 +25,8 @@ use Cake\ORM\Entity;
  * @property int $session_idle_minutes
  * @property int $session_event_retention_days
  * @property string|null $scim_token_hash SHA-256 of the SCIM token Rock Software ID pushes with.
+ * @property string|null $bearer_audience The audience an access token must name; null accepts none.
+ * @property string|null $bearer_issuer_url The access tokens' issuer when it is not `issuer_url`.
  * @property \Cake\I18n\DateTime $created
  * @property \Cake\I18n\DateTime $modified
  */
@@ -47,6 +49,8 @@ class Setting extends Entity
         'session_idle_minutes' => true,
         'session_event_retention_days' => true,
         'scim_token_hash' => true,
+        'bearer_audience' => true,
+        'bearer_issuer_url' => true,
     ];
 
     /**

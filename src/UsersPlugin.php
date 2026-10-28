@@ -32,6 +32,7 @@ use RockSoftware\Users\Command\ScimPrecheckCommand;
 use RockSoftware\Users\Command\SetPasswordCommand;
 use RockSoftware\Users\Command\StatusCommand;
 use RockSoftware\Users\Middleware\BackchannelLogoutMiddleware;
+use RockSoftware\Users\Middleware\BearerTokenMiddleware;
 use RockSoftware\Users\Middleware\ClientMetadataMiddleware;
 use RockSoftware\Users\Middleware\ProvisionMiddleware;
 use RockSoftware\Users\Middleware\RequireSignInMiddleware;
@@ -58,7 +59,7 @@ use RockSoftware\Users\Service\AuthenticationServiceProvider;
  * - `GET /auth/client-metadata` — the addresses the provider must register
  * - `GET|POST /auth/emergency/{token}` — single-use emergency sign-in
  * - `GET /auth/settings` (+ `POST update`, `POST test`, `POST allow-provisioning`,
- *   `POST password-sign-in`, `POST sessions`) —
+ *   `POST password-sign-in`, `POST sessions`, `POST access-tokens`) —
  *   Settings › Identity provider
  * - `GET /auth/users`, `GET /auth/users/{id}` (+ `POST end-sessions`, `POST
  *   emergency-link`) — the users page; `GET /auth/users/held-removals` (+ `POST
@@ -120,6 +121,13 @@ class UsersPlugin extends BasePlugin
      *   accepted, and nothing is fetched from anywhere else. `subject` is the
      *   account the token must be issued to, `maxAge` how many seconds after
      *   issue it is accepted, `rateLimit` requests per `rateWindow` seconds.
+     * - `bearer`: access tokens (`BearerTokenMiddleware`). `paths` are the path
+     *   prefixes signed in with an access token instead of a session (an API
+     *   or MCP endpoint, e.g. `/mcp`); none by default. `resourceMetadataUrl`
+     *   is the protected-resource metadata address a 401 names (RFC 9728), null
+     *   for none. `rateLimit` invalid tokens per client address within
+     *   `rateWindow` seconds, then 429. The audience a token must name is set on
+     *   the settings page; until it is, every token is refused.
      *
      * @var array<string, mixed>
      */
@@ -144,6 +152,12 @@ class UsersPlugin extends BasePlugin
             'subject' => 'onboarding',
             'maxAge' => 300,
             'rateLimit' => 10,
+            'rateWindow' => 900,
+        ],
+        'bearer' => [
+            'paths' => [],
+            'resourceMetadataUrl' => null,
+            'rateLimit' => 20,
             'rateWindow' => 900,
         ],
     ];
@@ -364,6 +378,12 @@ class UsersPlugin extends BasePlugin
             $middlewareQueue->insertAfter(AuthenticationMiddleware::class, new SessionCheckMiddleware());
         }
 
+        // Right after authentication, so the identity it sets is the one the
+        // session check, the sign-in requirement and the application read.
+        if (!self::queueHas($middlewareQueue, BearerTokenMiddleware::class)) {
+            $middlewareQueue->insertAfter(AuthenticationMiddleware::class, new BearerTokenMiddleware());
+        }
+
         $require = Configure::read('RockSoftwareUsers.requireSignIn');
         if ($require === true || ($require === 'auto' && $providesAuthentication)) {
             $middlewareQueue->insertAfter(SessionCheckMiddleware::class, new RequireSignInMiddleware());
@@ -404,6 +424,7 @@ class UsersPlugin extends BasePlugin
                 ['controller' => 'Settings', 'action' => 'allowProvisioning'],
             );
             $builder->connect('/settings/sessions', ['controller' => 'Settings', 'action' => 'sessions']);
+            $builder->connect('/settings/access-tokens', ['controller' => 'Settings', 'action' => 'accessTokens']);
             $builder->connect('/users', ['controller' => 'Users', 'action' => 'index']);
             $builder->connect('/users/held-removals', ['controller' => 'Users', 'action' => 'heldRevocations']);
             foreach (['approve' => 'approveRevocations', 'reject' => 'rejectRevocations'] as $suffix => $action) {

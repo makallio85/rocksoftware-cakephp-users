@@ -113,6 +113,57 @@ class ConnectionManager
     }
 
     /**
+     * Stores the access-token settings: the audience a token must name (empty
+     * accepts none), and the issuer of the client that requests them when it
+     * is another provider of Rock Software ID (empty: the connection's
+     * issuer). Another issuer must be on the connection's host and answer its
+     * discovery document, or nothing is saved.
+     *
+     * @param array<string, mixed> $data bearer_audience, bearer_issuer_url.
+     * @param int $userId The person saving.
+     * @return string|null Why nothing was saved, or null when it was.
+     */
+    public function updateAccessTokens(array $data, int $userId): ?string
+    {
+        $current = $this->current();
+        if ($current === null) {
+            return __d('rock_software_users', 'Connect the identity server first.');
+        }
+        $audience = trim((string)($data['bearer_audience'] ?? ''));
+        if (strlen($audience) > 255 || preg_match('/\s/', $audience)) {
+            return __d('rock_software_users', 'The audience is one client ID, without spaces.');
+        }
+        $issuer = $this->normaliseIssuer((string)($data['bearer_issuer_url'] ?? ''));
+        if ($issuer === $current->issuer_url) {
+            $issuer = '';
+        }
+        if ($issuer !== '') {
+            if (strlen($issuer) > 255 || !AccessTokenValidator::trustedIssuer($issuer, $current->issuer_url)) {
+                return __d(
+                    'rock_software_users',
+                    'The access-token issuer must be an https address on the identity server\'s host.',
+                );
+            }
+            $problem = $this->check(['issuer_url' => $issuer, 'client_id' => $audience]);
+            if ($problem !== null) {
+                return $problem;
+            }
+        }
+
+        $this->settings()->getConnection()->transactional(function () use ($audience, $issuer, $userId): void {
+            $this->settings()->store([
+                'bearer_audience' => $audience === '' ? null : $audience,
+                'bearer_issuer_url' => $issuer === '' ? null : $issuer,
+            ]);
+            /** @var \RockSoftware\Users\Model\Table\SettingChangesTable $changes */
+            $changes = $this->fetchTable('RockSoftware/Users.SettingChanges');
+            $changes->saveOrFail($changes->newEntity(['user_id' => $userId]));
+        });
+
+        return null;
+    }
+
+    /**
      * @param array<string, mixed> $data Submitted values.
      * @return string The secret to test with: the submitted one, else the stored one.
      */

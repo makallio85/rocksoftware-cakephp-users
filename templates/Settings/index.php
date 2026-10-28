@@ -21,6 +21,8 @@
  * @var string|null $passwordSignInChangedBy
  * @var \Cake\I18n\DateTime|null $passwordSignInChangedAt
  * @var array{max_hours: int, idle_minutes: int, retention_days: int} $sessionLimits
+ * @var string|null $bearerAudience
+ * @var string|null $bearerIssuerUrl
  */
 $this->assign('title', __d('rock_software_users', 'Identity provider'));
 ?>
@@ -221,6 +223,30 @@ $this->assign('title', __d('rock_software_users', 'Identity provider'));
                             <input type="number" class="form-control" id="session-event-retention-days" name="session_event_retention_days" min="1" value="<?= (int)$sessionLimits['retention_days'] ?>">
                             <span class="input-group-text"><?= __d('rock_software_users', 'days') ?></span>
                         </div>
+                    </div>
+                </div>
+                <?= $this->Form->button(__d('rock_software_users', 'Save'), ['class' => 'btn btn-primary']) ?>
+                <?= $this->Form->end() ?>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($configured) : ?>
+        <div class="card border-0 shadow-sm mt-3">
+            <div class="card-body p-3 p-md-4">
+                <h2 class="h6 fw-semibold mb-1"><?= __d('rock_software_users', 'Access tokens') ?></h2>
+                <p class="small text-body-secondary mb-3"><?= __d('rock_software_users', 'For the application\'s API and MCP paths: tools sign in with an access token from Rock Software ID instead of a browser session. Empty audience refuses every token.') ?></p>
+                <?= $this->Form->create(null, ['url' => ['plugin' => 'RockSoftware/Users', 'controller' => 'Settings', 'action' => 'accessTokens']]) ?>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold" for="bearer-audience"><?= __d('rock_software_users', 'Audience') ?></label>
+                        <input type="text" class="form-control" id="bearer-audience" name="bearer_audience" maxlength="255" value="<?= h((string)$bearerAudience) ?>" aria-describedby="bearer-audience-help">
+                        <div id="bearer-audience-help" class="form-text"><?= __d('rock_software_users', 'The client ID the tokens are issued for.') ?></div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold" for="bearer-issuer-url"><?= __d('rock_software_users', 'Token issuer') ?></label>
+                        <input type="url" class="form-control" id="bearer-issuer-url" name="bearer_issuer_url" maxlength="255" value="<?= h((string)$bearerIssuerUrl) ?>" placeholder="<?= h((string)($values['issuer_url'] ?? '')) ?>" aria-describedby="bearer-issuer-url-help">
+                        <div id="bearer-issuer-url-help" class="form-text"><?= __d('rock_software_users', 'When the client is another application in Rock Software ID. Empty: the identity server address above.') ?></div>
                     </div>
                 </div>
                 <?= $this->Form->button(__d('rock_software_users', 'Save'), ['class' => 'btn btn-primary']) ?>
